@@ -18,8 +18,14 @@
 
 unsigned char charmap[MAP_WIDTH * MAP_HEIGHT];
 unsigned char* screen;
+unsigned char joy;
 
 int i; // cc65: must declare all variables first
+
+int row;
+int col;
+int camera_x = 40;
+int camera_y = 80;
 
 void install_display_list() {
     unsigned char* dl;
@@ -50,15 +56,6 @@ void install_display_list() {
 
 void characterMap()
 {
-
-    int row;
-    int col;
-    int camera_x;
-    int camera_y;
-    int test;
-    camera_x = 40;
-    camera_y = 80;
-
     POKE(709, 15);
 
     CUSTOM_CHARSET[12 * 8 + 0] = 0b00000000;
@@ -615,9 +612,10 @@ void characterMap()
     charmap[3 * MAP_WIDTH + 104] = 12;
     charmap[3 * MAP_WIDTH + 103] = 12;
     charmap[3 * MAP_WIDTH + 102] = 12;
+}
 
-
-    
+void draw_map()
+{
     // Copy the visible 40x20 window to the screen
     for (row = 0; row < SCREEN_HEIGHT; row++)
     {
@@ -627,10 +625,29 @@ void characterMap()
         }
     }
 }
-void main(void) {
 
+void update_camera() {
+    unsigned char joy_state = joy_read(JOY_1);
+    
+    
+    if (JOY_UP(joy_state) && camera_y > 0) {
+        camera_y -= 5;
+    }
+    else if (JOY_DOWN(joy_state) && camera_y < MAP_HEIGHT - SCREEN_HEIGHT) {
+        camera_y += 5;
+    }
+    else if (JOY_LEFT(joy_state) && camera_x > 0) {
+        camera_x -= 5;
+    }
+    else if (JOY_RIGHT(joy_state) && camera_x < MAP_WIDTH - SCREEN_WIDTH) {
+        camera_x += 5;
+    }
+}
+
+
+void main(void) {  
     _graphics(13); // ANTIC mode 4 (text, 40 col)
-
+    
     screen = (unsigned char*)0x9300;
     POKE(88, 0x00);
     POKE(89, 0x93);
@@ -639,10 +656,15 @@ void main(void) {
     memcpy(CUSTOM_CHARSET, (void*)0xE000, 1024);  // Copy ROM charset
     POKE(756, 0xA0);  // Point ANTIC to custom charset
 
+    joy_install(&joy_static_stddrv);
     install_display_list();
     characterMap();
-
-    while (1);  // run forever
+    
+    while (1){
+        update_camera();
+        draw_map();
+    };
 }
+
 
 
