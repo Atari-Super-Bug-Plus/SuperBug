@@ -893,7 +893,7 @@ void update_scroll() {
         blocked = false;
 
         for (i = 1; i <= scroll_speed_h; i++) {
-            test_x = camera_x + 20 - i;
+            test_x = camera_x + 17 - i;
             if (!is_walkable_column(test_x, camera_y + 8, camera_y + 10)) {
                 tiles_scrolled = i - 1;
                 blocked = true;
