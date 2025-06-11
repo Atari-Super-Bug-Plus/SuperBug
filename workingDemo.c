@@ -15,23 +15,241 @@
 #define DISPLAY_LIST  0xBA00
 #define HSCROL  (*(unsigned char*)0xD404)  // Horizontal fine scroll register
 #define VCOUNT  (*(volatile unsigned char*)0xD40B)  // Current scanline
-#define SCREEN_STRIDE 41
+
+#define PMG_MEM     0x3000
+#define PLAYER0_GFX (PMG_MEM + 0x200)
+#define PLAYER1_GFX (PMG_MEM + 0x280)
+#define POT1 (*(unsigned char*)0xD200)
+#define TRIG1 (*(unsigned char*)0x027C)  // 0 = pressed
+
+// Hardware registers
+#define HPOSP0 53248    // Horizontal position of player 0
+#define HPOSP1 53249    // Horizontal position of player 1 
+#define SIZEP0 53256    // Size register for player 0 (0=normal, 1=double, 3=quadruple)
+#define SIZEP1 53257    // Size register for player 1
+#define GRACTL 53277    // Graphics control
+#define DMACTL 559      // DMA control
+#define PMBASE 54279    // Player/Missile base address
+#define COLOR0 704      // Color for player 0
+#define COLOR1 705      // Color for player 1
+#define STICK0 632      // Joystick 0 value
+
+// Direction constants
+#define DIR_UP 0
+#define DIR_RIGHT 1
+#define DIR_DOWN 2
+#define DIR_LEFT 3
+
+
+
 #define SCREEN_HEIGHT 24
 #define SCREEN_WIDTH  40
 #define MAP_WIDTH     200
 #define MAP_HEIGHT    100
-
+#define SPRITE_Y_OFFSET 80
 unsigned char* charmap;
 unsigned char* screen;
 unsigned char scroll_offset = 0;
 unsigned char pending_scroll_reset = 0;
 int camera_x = 0;
 int camera_y = 0;
-int row, col, i, j;
-unsigned char scroll_speed = 1;
-unsigned char scroll_hold_counter = 0;
+int row, col, i, j, x, y;
+unsigned char scroll_speed_v = 1;
+unsigned char scroll_speed_h = 1;
+unsigned char scroll_hold_counter_v = 0;
+unsigned char scroll_hold_counter_h = 0;
 
 
+#define ROTATE_COOLDOWN_FRAMES 10000  // Tune this value for slower/faster rotation
+unsigned char rotate_cooldown = 0;
+
+unsigned char xpos = 120;
+unsigned char direction = DIR_UP;
+unsigned char using_two_players = 0;  // Flag to track if we're using both players
+unsigned char prev_direction = 255;
+unsigned char last_steering = 0;  // 0 = neutral, 1 = left, 2 = right
+
+
+// UP
+unsigned char car_sprite_0[16] = {
+    0b00111100,
+    0b11111111,
+    0b00011000,
+    0b11011011,
+    0b11111111,
+    0b11011011,
+    0b00111100,
+    0b01100110,
+    0b01000010,
+    0b01000010,
+    0b11000011,
+    0b11000011,
+    0b11100111,
+    0b00111100,
+    0b11000011,
+    0b11111111
+};
+
+// Car sprite definition for down direction (8 pixels wide)
+unsigned char car_sprite_180[16] = {
+    0b11111111,
+    0b11000011,
+    0b00111100,
+    0b11100111,
+    0b11000011,
+    0b11000011,
+    0b01000010,
+    0b01000010,
+    0b01100110,
+    0b00111100,
+    0b11011011,
+    0b11111111,
+    0b11011011,
+    0b00011000,
+    0b11111111,
+    0b00111100
+};
+
+// Right-facing car sprite - left half (player 0)
+unsigned char car_sprite_right_p0[16] = {
+    0b11011100,  // Right edge of left half
+    0b11011111,
+    0b10110000,
+    0b10100000,
+    0b10100000,
+    0b10110000,
+    0b11011111,
+    0b11011100,
+    0b00000000,
+    0b00000000,
+    0b00000000,
+    0b00000000,
+    0b00000000,
+    0b00000000,
+    0b00000000,
+    0b00000000
+};
+
+// Right-facing car sprite - right half (player 1)
+unsigned char car_sprite_right_p1[16] = {
+    0b00111010,  // Left edge of right half
+    0b10111010,
+    0b11010011,
+    0b01111111,
+    0b01111111,
+    0b11010011, 
+    0b10111010,
+    0b00111010,
+    0b00000000,
+    0b00000000,
+    0b00000000,
+    0b00000000,
+    0b00000000,
+    0b00000000,
+    0b00000000,
+    0b00000000
+};
+
+// Left-facing car sprite - left half (player 0)
+unsigned char car_sprite_left_p0[16] = {
+    0b01011100,  // Left edge of left half
+    0b01011101,
+    0b11001011,
+    0b11111110,
+    0b11111110,
+    0b11001011,
+    0b01011101,
+    0b01011100,
+    0b00000000,
+    0b00000000,
+    0b00000000,
+    0b00000000,
+    0b00000000,
+    0b00000000,
+    0b00000000,
+    0b00000000
+};
+
+// Left-facing car sprite - right half (player 1)
+unsigned char car_sprite_left_p1[16] = {
+    0b00111011,  // Right edge of right half
+    0b11111011,
+    0b00001101,
+    0b00000101,
+    0b00000101,
+    0b00001101,
+    0b11111011,
+    0b00111011,
+    0b00000000,
+    0b00000000,
+    0b00000000,
+    0b00000000,
+    0b00000000,
+    0b00000000,
+    0b00000000,
+    0b00000000
+};
+
+void clear_players(void) {
+    // Use memset for efficiency
+    memset((void*)(PLAYER0_GFX), 0, 256);
+    memset((void*)(PLAYER1_GFX), 0, 256);
+}
+
+void load_sprite(unsigned char* sprite, unsigned char player) {
+    unsigned int i;
+    unsigned int base = (player == 0) ? PLAYER0_GFX : PLAYER1_GFX;
+    for (i = 0; i < 16; i++) {
+        POKE(base + 50 + i, sprite[i]);
+    }
+    if (player == 0) {
+        for (i = 0; i < 16; i++) {
+            POKE(PLAYER1_GFX + 50 + i, 0);  // Clear player 1 when using just player 0
+        }
+    }
+}
+
+void load_right_facing_sprite(void) {
+    unsigned int i;
+    // Only clear the sprite area (not entire player memory)
+    for (i = 0; i < 16; i++) {
+        POKE(PLAYER0_GFX + 50 + i, car_sprite_right_p0[i]); // Left half
+        POKE(PLAYER1_GFX + 50 + i, car_sprite_right_p1[i]); // Right half
+    }
+    // Position player 1 exactly 8 pixels to the right of player 0
+    POKE(HPOSP1, xpos + 8);
+}
+
+void load_left_facing_sprite(void) {
+    unsigned int i;
+    // Only clear the sprite area (not entire player memory)
+    for (i = 0; i < 16; i++) {
+        POKE(PLAYER0_GFX + 50 + i, car_sprite_left_p0[i]); // Left half
+        POKE(PLAYER1_GFX + 50 + i, car_sprite_left_p1[i]); // Right half
+    }
+    // Position player 1 exactly 8 pixels to the right of player 0
+    POKE(HPOSP1, xpos + 8);
+}
+
+bool is_walkable_column(int x, int y_start, int y_end) {
+    int y;
+    unsigned char tile;
+    for (y = y_start; y < y_end; y++) {
+        if (x >= MAP_WIDTH || y >= MAP_HEIGHT) return false;
+
+        tile = charmap[y * MAP_WIDTH + x];
+        if (tile == 1) return false;  
+    }
+    return true;
+}
+bool is_walkable_row(int y, int x_start, int x_end) {
+    int x;
+    for (x = x_start; x < x_end; x++) {
+        if (x >= MAP_WIDTH || y >= MAP_HEIGHT) return false;
+        if (charmap[y * MAP_WIDTH + x] == 1) return false;
+    }
+    return true;
+}
 
 void characterMap()
 {
@@ -603,8 +821,8 @@ void install_display_list() {
     dl[j++] = 0x70;
 
     for (i = 0; i < SCREEN_HEIGHT; i++) {
-        line_addr = SCREEN_ADDR + i * SCREEN_STRIDE;
-        dl[j++] = 0x54 | 0x10;  // Mode 4 + LMS + fine scroll
+        line_addr = SCREEN_ADDR + i * SCREEN_WIDTH;
+        dl[j++] = 0x44;  // Mode 4 + LMS + fine scroll
         dl[j++] = line_addr & 0xFF;
         dl[j++] = (line_addr >> 8) & 0xFF;
     }
@@ -619,114 +837,203 @@ void draw_map() {
     unsigned char* src = &charmap[camera_y * MAP_WIDTH + camera_x];
 
     for (row = 0; row < SCREEN_HEIGHT; row++) {
-        memcpy(dst, src, SCREEN_WIDTH + 1);  // copy 41 columns per row
-        dst += SCREEN_STRIDE;
+        memcpy(dst, src, SCREEN_WIDTH);  // copy 41 columns per row
+        dst += SCREEN_WIDTH;
         src += MAP_WIDTH;
     }
 }
+
 unsigned char tiles_scrolled;
 void update_scroll() {
+    bool blocked;
+    int test_x, test_y, i;
     unsigned char joy_state = joy_read(JOY_1);
-    int map_row, map_col;
 
     while (VCOUNT > 8);
     while (VCOUNT <= 8);
 
     if (pending_scroll_reset) {
-        HSCROL = 0;
         pending_scroll_reset = 0;
     }
 
     // RIGHT
     if (JOY_RIGHT(joy_state) && (camera_x + SCREEN_WIDTH + 1 < MAP_WIDTH)) {
-        scroll_hold_counter++;
-        if (scroll_hold_counter == 8) scroll_speed = 2;
-        else if (scroll_hold_counter == 16) scroll_speed = 4;
-        else if (scroll_hold_counter == 24) scroll_speed = 6;
+        scroll_hold_counter_h++;
+        if (scroll_hold_counter_h == 8) scroll_speed_h = 4;
+        else if (scroll_hold_counter_h == 16) scroll_speed_h = 8;
+        else if (scroll_hold_counter_h == 24) scroll_speed_h = 12;
 
-        scroll_offset += scroll_speed;
+        tiles_scrolled = scroll_speed_h;
+        blocked = false;
 
-        if (scroll_offset >= 7 && scroll_offset < 8 + scroll_speed) {
-            for (row = 0; row < SCREEN_HEIGHT; row++) {
-                map_row = camera_y + row;
-                map_col = camera_x + SCREEN_WIDTH;
-                screen[row * SCREEN_STRIDE + 40] =
-                    (map_row >= MAP_HEIGHT || map_col >= MAP_WIDTH) ? 0 :
-                    charmap[map_row * MAP_WIDTH + map_col];
+        for (i = 1; i <= scroll_speed_h; i++) {
+            test_x = camera_x + 20 + i;  // center + step
+            if (!is_walkable_column(test_x, camera_y + 8, camera_y + 10)) {
+                tiles_scrolled = i - 1;
+                blocked = true;
+                break;
             }
         }
 
-        if (scroll_offset >= 8) {
-            tiles_scrolled = scroll_offset / 8;
-            scroll_offset %= 8;
+        if (tiles_scrolled > 0) {
             camera_x += tiles_scrolled;
             draw_map();
             pending_scroll_reset = 1;
         }
     }
+
     // LEFT
     else if (JOY_LEFT(joy_state) && camera_x > 0) {
-        scroll_hold_counter++;
-        if (scroll_hold_counter == 8) scroll_speed = 2;
-        else if (scroll_hold_counter == 16) scroll_speed = 4;
-        else if (scroll_hold_counter == 24) scroll_speed = 6;
+        scroll_hold_counter_h++;
+        if (scroll_hold_counter_h == 8) scroll_speed_h = 4;
+        else if (scroll_hold_counter_h == 16) scroll_speed_h = 8;
+        else if (scroll_hold_counter_h == 24) scroll_speed_h = 12;
 
-        scroll_offset += scroll_speed;
+        tiles_scrolled = scroll_speed_h;
+        blocked = false;
 
-        if (scroll_offset >= 7 && scroll_offset < 8 + scroll_speed) {
-            for (row = 0; row < SCREEN_HEIGHT; row++) {
-                map_row = camera_y + row;
-                map_col = camera_x - 1;
-                screen[row * SCREEN_STRIDE] =
-                    (map_row >= MAP_HEIGHT || map_col >= MAP_WIDTH) ? 0 :
-                    charmap[map_row * MAP_WIDTH + map_col];
+        for (i = 1; i <= scroll_speed_h; i++) {
+            test_x = camera_x + 20 - i;
+            if (!is_walkable_column(test_x, camera_y + 8, camera_y + 10)) {
+                tiles_scrolled = i - 1;
+                blocked = true;
+                break;
             }
         }
 
-        if (scroll_offset >= 8) {
-            tiles_scrolled = scroll_offset / 8;
-            scroll_offset %= 8;
+        if (tiles_scrolled > 0) {
             camera_x -= tiles_scrolled;
             draw_map();
             pending_scroll_reset = 1;
         }
+    } else {
+        scroll_hold_counter_h = 0;
+        scroll_speed_h = 1;
     }
-    // UP
-    else if (JOY_UP(joy_state) && camera_y > 0) {
-        scroll_hold_counter++;
-        if (scroll_hold_counter == 8) scroll_speed = 1;
-        else if (scroll_hold_counter == 16) scroll_speed = 2;
-        else if (scroll_hold_counter == 24) scroll_speed = 3;
 
-        camera_y -= scroll_speed;
-        if (camera_y < 0) camera_y = 0;
-        draw_map();
-        pending_scroll_reset = 1;
+    // UP
+    if (JOY_UP(joy_state) && camera_y > 0) {
+        scroll_hold_counter_v++;
+        if (scroll_hold_counter_v == 8) scroll_speed_v = 1;
+        else if (scroll_hold_counter_v == 16) scroll_speed_v = 2;
+        else if (scroll_hold_counter_v == 24) scroll_speed_v = 2;
+
+        tiles_scrolled = scroll_speed_v;
+        blocked = false;
+
+        for (i = 1; i <= scroll_speed_v; i++) {
+            test_y = camera_y + 11 - i;  // center of screen
+            if (!is_walkable_row(test_y, camera_x + 18, camera_x + 22)) {
+                tiles_scrolled = i - 1;
+                blocked = true;
+                break;
+            }
+        }
+
+        if (tiles_scrolled > 0) {
+            camera_y -= tiles_scrolled;
+            draw_map();
+            pending_scroll_reset = 1;
+        }
     }
+
     // DOWN
     else if (JOY_DOWN(joy_state) && (camera_y + SCREEN_HEIGHT + 1 < MAP_HEIGHT)) {
-        scroll_hold_counter++;
-        if (scroll_hold_counter == 8) scroll_speed = 1;
-        else if (scroll_hold_counter == 16) scroll_speed = 2;
-        else if (scroll_hold_counter == 24) scroll_speed = 3;
+        scroll_hold_counter_v++;
+        if (scroll_hold_counter_v == 8) scroll_speed_v = 1;
+        else if (scroll_hold_counter_v == 16) scroll_speed_v = 2;
+        else if (scroll_hold_counter_v == 24) scroll_speed_v = 2;
 
-        camera_y += scroll_speed;
-        draw_map();
-        pending_scroll_reset = 1;
+        tiles_scrolled = scroll_speed_v;
+        blocked = false;
+
+        for (i = 1; i <= scroll_speed_v; i++) {
+            test_y = camera_y + 11 + i;  // center of screen + step
+            if (!is_walkable_row(test_y, camera_x + 18, camera_x + 22)) {
+                tiles_scrolled = i - 1;
+                blocked = true;
+                break;
+            }
+        }
+
+        if (tiles_scrolled > 0) {
+            camera_y += tiles_scrolled;
+            draw_map();
+            pending_scroll_reset = 1;
+        }
+    } else {
+        scroll_hold_counter_v = 0;
+        scroll_speed_v = 1;
     }
-    else {
-        scroll_hold_counter = 0;
-        scroll_speed = 1;
+
+    // Sprite direction updates (optional)
+    if (JOY_UP(joy_state)) {
+        load_sprite(car_sprite_0, 0);
+    } else if (JOY_DOWN(joy_state)) {
+        load_sprite(car_sprite_180, 0);
+    } else if (JOY_LEFT(joy_state)) {
+        load_left_facing_sprite();
+        using_two_players = 1;
+    } else if (JOY_RIGHT(joy_state)) {
+        load_right_facing_sprite();
+        using_two_players = 1;
     }
 }
 
+
+/*
+void update_scroll() {
+    unsigned char pot = POT1;
+    static unsigned char direction = DIR_UP;
+    static unsigned char prev_direction = 255;
+    static unsigned char last_steering = 0;
+    unsigned char steering = 0;
+
+    // Cooldown countdown
+    if (rotate_cooldown > 0) {
+        rotate_cooldown--;
+    }
+
+   if (pot < 40) {
+    steering = 1;  // left
+    } else if (pot > 80) {
+    steering = 2;  // right
+    } else {
+    steering = 0;  // neutral
+    }
+
+    // Only rotate on steering change or after cooldown expires
+    if (rotate_cooldown == 0 && steering != 0 && steering != last_steering) {
+        // Just started turning
+        if (steering == 1) {
+            direction = (direction == 0) ? 3 : direction - 1;
+        } else {
+            direction = (direction + 1) % 4;
+        }
+        rotate_cooldown = ROTATE_COOLDOWN_FRAMES;
+        last_steering = steering;
+    }
+    
+
+    // Update sprite if direction changed
+    if (direction != prev_direction) {
+        switch (direction) {
+            case DIR_UP:    load_sprite(car_sprite_0, 0); break;
+            case DIR_DOWN:  load_sprite(car_sprite_180, 0); break;
+            case DIR_LEFT:  load_left_facing_sprite(); break;
+            case DIR_RIGHT: load_right_facing_sprite(); break;
+        }
+        prev_direction = direction;
+    }
+}
+*/
 void main(void) {
     _graphics(12);  // ANTIC mode 4
     charmap = (unsigned char*)CHARMAP_ADDR;
     screen = (unsigned char*)SCREEN_ADDR;
 
     memset(charmap, 0, MAP_WIDTH * MAP_HEIGHT);
-    memset(screen, 0, SCREEN_STRIDE * SCREEN_HEIGHT);
+    memset(screen, 0, SCREEN_WIDTH * SCREEN_HEIGHT);
 
     memcpy(CUSTOM_CHARSET, (void*)0xE000, 1024);  // Use system ROM charset
     POKE(756, ((unsigned int)CUSTOM_CHARSET) >> 8);
@@ -737,10 +1044,27 @@ void main(void) {
 
     POKE(560, DISPLAY_LIST & 0xFF);
     POKE(561, DISPLAY_LIST >> 8);
-    POKE(559, 0x22);  // DMA enable + fine scroll
-    HSCROL = 0;
+  
 
     joy_install(&joy_static_stddrv);
+
+    // Clear PMG memory
+    
+    POKE(559, 0x3E);  // DMA enable + fine scroll
+    // Set PMG base address
+    POKE(DMACTL, 0x2E);         // Enable normal DMA + players (no missiles)
+    POKE(GRACTL, 0x03);         // Enable player graphics
+    POKE(PMBASE, PMG_MEM >> 8); // PMBASE = 0x30
+    POKE(COLOR0, 0xFE);         // Bright white player
+    POKE(COLOR1, 0xFE);
+    POKE(SIZEP0, 0);            // Normal size
+    POKE(SIZEP1, 0);
+    clear_players();
+    // Draw a simple vertical bar sprite for PLAYER0
+    load_sprite(car_sprite_0, 0);  // Show starting sprite
+
+    // Position player in the center
+    POKE(HPOSP0, xpos);
 
     while (1) {
         update_scroll();
