@@ -21,7 +21,7 @@
 #define PMG_MEM     0x3000
 #define PLAYER0_GFX (PMG_MEM + 0x200)
 #define PLAYER1_GFX (PMG_MEM + 0x280)
-#define POT1 (*(unsigned char*)0xD200)
+#define POT1 (*(unsigned char*)0x0270)
 #define TRIG1 (*(unsigned char*)0x027C)  // 0 = pressed
 
 // Hardware registers
@@ -662,7 +662,6 @@ void load_left_facing_sprite(void) {
     POKE(HPOSP0, ((sprite_x * 161) / 40) + 39);  // Main sprite
     POKE(HPOSP1, ((sprite_x * 161) / 40) + 47);  // Offset companion
 }
-
 
 bool is_walkable_column(int x, int y_start, int y_end) {
     unsigned char y;
@@ -1318,12 +1317,10 @@ void draw_map() {
     }
 }
 
-
-
-
 unsigned char tiles_scrolled;
 
-void update_scroll() {
+// JOYSTICK LOGIC
+/*void update_scroll() {
     bool blocked;
     int test_x, test_y, i;
     unsigned char joy_state = joy_read(JOY_1);
@@ -1497,6 +1494,190 @@ void update_scroll() {
         //using_two_players = 1;
     }
 }
+*/
+
+// PADDLE LOGIC  
+void update_scroll() {
+    unsigned char paddle = POT1;
+    unsigned char accelerate = TRIG1;
+    unsigned char direction;
+    bool blocked;
+    int test_x, test_y, i;
+
+    while (VCOUNT > 8);
+    while (VCOUNT <= 8);
+
+    // Custom paddle-to-direction mapping (CW, UP wraps around)
+    if ((paddle > 201 && paddle < 228) || (paddle < 27)) {
+        direction = 0; // UP
+        load_sprite(car_sprite_0, 0);
+    } else if (paddle > 28 && paddle < 82) {
+        direction = 1; // RIGHT
+        load_right_facing_sprite();
+    } else if (paddle > 83 && paddle < 137) {
+        direction = 2; // DOWN
+        load_sprite(car_sprite_180, 0);
+    } else if (paddle > 138 && paddle < 201) { 
+        direction = 3; // LEFT
+        load_left_facing_sprite();
+    }
+
+    if(accelerate == 0)
+    {
+        switch(direction) {
+            case 1: // RIGHT
+                scroll_hold_counter_h++;
+                if (scroll_hold_counter_h == 8) scroll_speed_h = 1;
+                else if (scroll_hold_counter_h == 16) scroll_speed_h = 1;
+                else if (scroll_hold_counter_h == 24) scroll_speed_h = 1;
+
+                tiles_scrolled = scroll_speed_h;
+                blocked = false;
+
+                for (i = 0; i <= scroll_speed_h; i++) {
+                    test_x = camera_x + sprite_x + i + 1;
+                    if (!is_walkable_column(test_x,
+                            camera_y + (sprite_y / 4) - 3,
+                            camera_y + (sprite_y / 4) - 2)) {
+                        tiles_scrolled = i - 1;
+                        blocked = true;
+                        break;
+                    }
+                }
+
+                if (tiles_scrolled > 0) {
+                    if (sprite_x < SPRITE_CENTER_X) {
+                        if (sprite_x + tiles_scrolled > SPRITE_CENTER_X) {
+                            sprite_x = SPRITE_CENTER_X;
+                        } else {
+                            sprite_x += tiles_scrolled;
+                        }
+                    } else if (camera_x < MAP_WIDTH - 42) {
+                        camera_x += tiles_scrolled;
+                        draw_map();
+                        pending_scroll_reset = 1;
+                    } else if (sprite_x + tiles_scrolled < 42) {
+                        sprite_x += tiles_scrolled;
+                        memset((void*)PLAYER0_GFX, 0, 256);
+                        memset((void*)PLAYER1_GFX, 0, 256);
+                    }
+                }
+                break;
+
+            case 3: // LEFT
+                scroll_hold_counter_h++;
+                if (scroll_hold_counter_h == 8) scroll_speed_h = 1;
+                else if (scroll_hold_counter_h == 16) scroll_speed_h = 1;
+                else if (scroll_hold_counter_h == 24) scroll_speed_h = 1;
+
+                tiles_scrolled = scroll_speed_h;
+                blocked = false;
+
+                for (i = 1; i <= scroll_speed_h; i++) {
+                    test_x = camera_x + (int)sprite_x - 2 - i;
+                    if (!is_walkable_column(test_x,
+                            camera_y + (sprite_y / 4) - 3,
+                            camera_y + (sprite_y / 4) - 2)) {
+                        tiles_scrolled = i - 1;
+                        blocked = true;
+                        break;
+                    }
+                }
+
+                if (tiles_scrolled > 0) {
+                    if (sprite_x > SPRITE_CENTER_X) {
+                        if (sprite_x - tiles_scrolled < SPRITE_CENTER_X) {
+                            sprite_x = SPRITE_CENTER_X;
+                        } else {
+                            sprite_x -= tiles_scrolled;
+                        }
+                    } else if (camera_x > 0) {
+                        camera_x -= tiles_scrolled;
+                        draw_map();
+                        pending_scroll_reset = 1;
+                    } else if (sprite_x - tiles_scrolled > 0) {
+                        sprite_x -= tiles_scrolled;
+                        memset((void*)PLAYER0_GFX, 0, 256);
+                        memset((void*)PLAYER1_GFX, 0, 256);
+                    }
+                }
+                break;
+
+            case 0: // UP
+                scroll_hold_counter_v++;
+                if (scroll_hold_counter_v == 8) scroll_speed_v = 1;
+                else if (scroll_hold_counter_v == 16) scroll_speed_v = 1;
+                else if (scroll_hold_counter_v == 24) scroll_speed_v = 1;
+
+                tiles_scrolled = scroll_speed_v;
+                blocked = false;
+
+                for (i = 1; i <= scroll_speed_v; i++) {
+                    test_y = camera_y + (sprite_y / 4) - 4 - i;
+                    if (!is_walkable_row(test_y,
+                            camera_x + (int)sprite_x - 1,
+                            camera_x + (int)sprite_x + 1)) {
+                        tiles_scrolled = i - 1;
+                        blocked = true;
+                        break;
+                    }
+                }
+
+                if (tiles_scrolled > 0) {
+                    if (sprite_y > SPRITE_CENTER_Y) {
+                        sprite_y -= tiles_scrolled * 4;
+                        memset((void*)PLAYER0_GFX, 0, 256);
+                    } else if (camera_y - tiles_scrolled >= 0) {
+                        camera_y -= tiles_scrolled;
+                        draw_map();
+                        pending_scroll_reset = 1;
+                    } else {
+                        sprite_y -= tiles_scrolled * 4;
+                        memset((void*)PLAYER0_GFX, 0, 256);
+                    }
+                }
+                break;
+
+            case 2: // DOWN
+                scroll_hold_counter_v++;
+                if (scroll_hold_counter_v == 8) scroll_speed_v = 1;
+                else if (scroll_hold_counter_v == 16) scroll_speed_v = 1;
+                else if (scroll_hold_counter_v == 24) scroll_speed_v = 1;
+
+                tiles_scrolled = scroll_speed_v;
+                blocked = false;
+
+                for (i = 1; i <= scroll_speed_v; i++) {
+                    test_y = camera_y + (sprite_y / 4) - 1 + i;
+                    if (!is_walkable_row(test_y,
+                            camera_x + (int)sprite_x - 1,
+                            camera_x + (int)sprite_x + 1)) {
+                        tiles_scrolled = i - 1;
+                        blocked = true;
+                        break;
+                    }
+                }
+
+                if (tiles_scrolled > 0) {
+                    if (sprite_y < SPRITE_CENTER_Y) {
+                        memset((void*)PLAYER0_GFX, 0, 256);
+                        sprite_y += tiles_scrolled * 4;
+                        if (sprite_y > SPRITE_CENTER_Y) sprite_y = SPRITE_CENTER_Y;
+                    } else if (camera_y + SCREEN_HEIGHT < MAP_HEIGHT) {
+                        camera_y += tiles_scrolled;
+                        draw_map();
+                        pending_scroll_reset = 1;
+                    } else {
+                        sprite_y += tiles_scrolled * 4;
+                        memset((void*)PLAYER0_GFX, 0, 256);
+                    }
+                }
+                break;
+        }
+    }
+}
+
+
 
 void main(void) {
     _graphics(12); 
@@ -1559,6 +1740,4 @@ void main(void) {
         update_scroll();  // Handles camera and sprite movement
     }
 }
-
-
 
