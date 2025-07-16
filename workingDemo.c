@@ -13,7 +13,7 @@
 #define CHARMAP_ADDR  0x6400
 #define SCREEN_ADDR   ((unsigned char*)0xB400)
 #define DISPLAY_LIST  0x6000
-#define SPRITE_TABLE_ADDR ((unsigned char*)0xBB00)
+#define SPRITE_TABLE_ADDR ((unsigned char*)0xBE50)
 #define HUD_BUFFER ((unsigned char*)0xBE00)
 
 
@@ -1111,7 +1111,7 @@ void update_scroll() {
 
 //static char score_buffer[11];  // Declare this outside of any function
 void init_tile_to_hpos() {
-    unsigned char i;
+    unsigned int i;
     for (i = 0; i < 40; i++) {
         tile_to_hpos[i] = 48 + (i * 4);  // Same as: 48, 52, ...
     }
