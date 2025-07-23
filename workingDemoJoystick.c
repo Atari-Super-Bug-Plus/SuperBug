@@ -15,15 +15,7 @@
 #define DISPLAY_LIST  0x6000
 #define SPRITE_TABLE_ADDR ((unsigned char*)0xBE50)
 #define HUD_BUFFER ((unsigned char*)0xBE00)
-#define SPRITE_BUFFER ((unsigned char*)0x0500)  // Pick a safe area not used by anything else
 
-
-#define SPRITE_UP         (SPRITE_BUFFER + 0x00)
-#define SPRITE_DOWN       (SPRITE_BUFFER + 0x10)
-#define SPRITE_RIGHT_P0   (SPRITE_BUFFER + 0x20)
-#define SPRITE_RIGHT_P1   (SPRITE_BUFFER + 0x30)
-#define SPRITE_LEFT_P0    (SPRITE_BUFFER + 0x40)
-#define SPRITE_LEFT_P1    (SPRITE_BUFFER + 0x50)
 
 #define gas_hund HUD_DIGIT_MEM[6]
 #define gas_tens HUD_DIGIT_MEM[7]
@@ -38,10 +30,11 @@
 #define PLAYER0_GFX (PMG_MEM + 0x200)
 #define PLAYER1_GFX (PMG_MEM + 0x280)
 
-#define PORTA (*(unsigned char*)0xD300)
+//#define POT1 (*(unsigned char*)0xD200)
 #define TRIG1 (*(unsigned char*)0xD010)  // 0 = pressed
-#define POTGO (*(unsigned char*)0xD20B)
-#define POT1 (*(unsigned char*)0x0270)
+//#define POTGO (*(unsigned char*)0xD20B)
+
+
 
 #ifndef MIN
   #define MIN(a,b) ((a) < (b) ? (a) : (b))
@@ -50,8 +43,6 @@
 #ifndef MAX
   #define MAX(a,b) ((a) > (b) ? (a) : (b))
 #endif
-
-#define STEPS_PER_KEY_PRESS 4
 
 // Hardware registers
 #define HPOSP0 53248    // Horizontal position of player 0
@@ -64,15 +55,6 @@
 #define COLOR0 704      // Color for player 0
 #define COLOR1 705      // Color for player 1
 #define STICK0 632      // Joystick 0 value
-
-// Direction constants
-#define DIR_UP 0
-#define DIR_RIGHT 1
-#define DIR_DOWN 2
-#define DIR_LEFT 3
-
-#define TEXT_LINE      ((unsigned char*)SCREEN_ADDR)
-#define TILEMAP_START  (SCREEN_ADDR + 40)
 
 #define SCREEN_HEIGHT 24
 #define SCREEN_WIDTH  40
@@ -93,28 +75,17 @@ unsigned char scroll_hold_counter_v = 0;
 unsigned char scroll_hold_counter_h = 0;
 unsigned char sprite_x = 20;  // screen-relative X position
 unsigned char sprite_y = 52;  // screen-relative Y position
-#define SCORE_ADDR 0xBEF0
-#define GAS_ADDR 0xBF00
 
-#define score (*(unsigned char*)SCORE_ADDR)
-#define gas   (*(unsigned char*)GAS_ADDR)
-
-#define CENTER_MIN 40
-#define CENTER_MAX 150
-
-#define ROTATE_COOLDOWN_FRAMES 10000  // Tune this value for slower/faster rotation
-unsigned char rotate_cooldown = 0;
-
-unsigned char xpos = 60;
-unsigned char direction = DIR_UP;
+int gas = 40;
+int score = 0;
+unsigned char direction = 0;
 unsigned char using_two_players = 0;  // Flag to track if we're using both players
-unsigned char prev_direction = 255;
-unsigned char last_steering = 0;  // 0 = neutral, 1 = left, 2 = right
+
 
 unsigned char* tile_to_hpos = (unsigned char*)SPRITE_TABLE_ADDR; 
 
 // UP
-const unsigned char car_sprite_0[16] = {
+unsigned char car_sprite_0[16] = {
     0b00111100,
     0b11111111,
     0b00011000,
@@ -134,7 +105,7 @@ const unsigned char car_sprite_0[16] = {
 };
 
 // Car sprite definition for down direction (8 pixels wide)
-const unsigned char car_sprite_180[16] = {
+unsigned char car_sprite_180[16] = {
     0b11111111,
     0b11000011,
     0b00111100,
@@ -154,7 +125,7 @@ const unsigned char car_sprite_180[16] = {
 };
 
 // Right-facing car sprite - left half (player 0)
-const unsigned char car_sprite_right_p0[16] = {
+unsigned char car_sprite_right_p0[16] = {
     0b11011100,  // Right edge of left half
     0b11011111,
     0b10110000,
@@ -174,7 +145,7 @@ const unsigned char car_sprite_right_p0[16] = {
 };
 
 // Right-facing car sprite - right half (player 1)
-const unsigned char car_sprite_right_p1[16] = {
+unsigned char car_sprite_right_p1[16] = {
     0b00111010,  // Left edge of right half
     0b10111010,
     0b11010011,
@@ -194,7 +165,7 @@ const unsigned char car_sprite_right_p1[16] = {
 };
 
 // Left-facing car sprite - left half (player 0)
-const unsigned char car_sprite_left_p0[16] = {
+unsigned char car_sprite_left_p0[16] = {
     0b01011100,  // Left edge of left half
     0b01011101,
     0b11001011,
@@ -214,7 +185,7 @@ const unsigned char car_sprite_left_p0[16] = {
 };
 
 // Left-facing car sprite - right half (player 1)
-const unsigned char car_sprite_left_p1[16] = {
+unsigned char car_sprite_left_p1[16] = {
     0b00111011,  // Right edge of right half
     0b11111011,
     0b00001101,
@@ -238,7 +209,6 @@ void clear_players(void) {
     memset((void*)(PLAYER0_GFX), 0, 256);
     memset((void*)(PLAYER1_GFX), 0, 256);
 }
-
 void load_sprite(unsigned char* sprite, unsigned char player) {
     unsigned char i;
     unsigned int base = (player == 0) ? PLAYER0_GFX : PLAYER1_GFX;
@@ -250,6 +220,7 @@ void load_sprite(unsigned char* sprite, unsigned char player) {
     if (player == 0) {
         for (i = 0; i < 16; i++) {
             POKE(PLAYER1_GFX + sprite_y + i, 0);  // Clear player 1 when using just player 0
+            
         }
     }
     POKE(HPOSP0, tile_to_hpos[sprite_x]);
@@ -258,10 +229,9 @@ void load_sprite(unsigned char* sprite, unsigned char player) {
 
 void load_right_facing_sprite(void) {
     unsigned char i;
-
     for (i = 0; i < 16; i++) {
-        POKE(PLAYER0_GFX + sprite_y + i, SPRITE_RIGHT_P0[i]);
-        POKE(PLAYER1_GFX + sprite_y + i, SPRITE_RIGHT_P1[i]);
+        POKE(PLAYER0_GFX + sprite_y + i, car_sprite_right_p0[i]);
+        POKE(PLAYER1_GFX + sprite_y + i, car_sprite_right_p1[i]);
     }
     POKE(HPOSP0, tile_to_hpos[sprite_x]);
     POKE(HPOSP1, tile_to_hpos[sprite_x + 2]);
@@ -269,16 +239,16 @@ void load_right_facing_sprite(void) {
 
 void load_left_facing_sprite(void) {
     unsigned char i;
-    
     // Draw left-facing sprite into Player 0 and Player 1 graphics memory
     for (i = 0; i < 16; i++) {
-        POKE(PLAYER0_GFX + sprite_y + i, SPRITE_LEFT_P0[i]);
-        POKE(PLAYER1_GFX + sprite_y + i, SPRITE_LEFT_P1[i]);
+        POKE(PLAYER0_GFX + sprite_y + i, car_sprite_left_p0[i]);
+        POKE(PLAYER1_GFX + sprite_y + i, car_sprite_left_p1[i]);
     }
     // Set horizontal positions for both players (offset for alignment)
-    POKE(HPOSP0, tile_to_hpos[sprite_x]);
-    POKE(HPOSP1, tile_to_hpos[sprite_x + 2]);
+    POKE(HPOSP0, 120);
+    POKE(HPOSP1, 128);
 }
+
 
 bool is_walkable_column(int x, int y_start, int y_end) {
     unsigned char y;
@@ -303,7 +273,15 @@ void characterMap()
     int i;
     POKE(709, 15);
 
-    
+    CUSTOM_CHARSET[1 * 8 + 0] = 0b00000000;
+    CUSTOM_CHARSET[1 * 8 + 1] = 0b00000000;
+    CUSTOM_CHARSET[1 * 8 + 2] = 0b00101000;
+    CUSTOM_CHARSET[1 * 8 + 3] = 0b00101000;
+    CUSTOM_CHARSET[1 * 8 + 4] = 0b00101000;
+    CUSTOM_CHARSET[1 * 8 + 5] = 0b00101000;
+    CUSTOM_CHARSET[1 * 8 + 6] = 0b00000000;
+    CUSTOM_CHARSET[1 * 8 + 7] = 0b00000000;
+
     // square 1x1
     for (i = 14; i < 104; i += 2)
     {
@@ -317,7 +295,7 @@ void characterMap()
     charmap[4 * MAP_WIDTH + 9] = 1;
 
     charmap[5 * MAP_WIDTH + 8] = 1;
-    charmap[10 * MAP_WIDTH + 30] = 3;
+
     charmap[6 * MAP_WIDTH + 7] = 1;
     charmap[7 * MAP_WIDTH + 7] = 1;
 
@@ -889,7 +867,8 @@ void draw_map() {
     }
 }
 
-void update_hud(int hud_score, unsigned char hud_gas) {
+
+void update_hud(int hud_score, int hud_gas) {
 
     HUD_BUFFER[0]  = 'S' - 0x20;
     HUD_BUFFER[1]  = 'c';
@@ -897,7 +876,7 @@ void update_hud(int hud_score, unsigned char hud_gas) {
     HUD_BUFFER[3]  = 'r';
     HUD_BUFFER[4]  = 'e';
 
-    HUD_BUFFER[7] = (hud_score / 100) + '0'; // broken for some
+    HUD_BUFFER[7] = (hud_score / 100) + 0x10; // broken for some
     HUD_BUFFER[8] = ((hud_score / 10) % 10) + 0x10;
     HUD_BUFFER[9] = 0x10;
 
@@ -916,43 +895,31 @@ void update_hud(int hud_score, unsigned char hud_gas) {
 unsigned int score_counter = 0;
 unsigned char tiles_scrolled;
 void update_scroll() {
-    unsigned char paddle;
+    unsigned char joy;
+    //unsigned char paddle;
     unsigned char accelerate = TRIG1;
-    unsigned char direction;
+    
     bool blocked;
     int test_x, test_y, i;
     while (VCOUNT > 8);
     while (VCOUNT <= 8);
-    
-    paddle = PORTA & 0x0F;
-    update_hud(score, gas);
+    joy = joy_read(JOY_1);
+
     // Custom paddle-to-direction mapping (CW, UP wraps around)
-    
-    if (paddle == 15) {
+    if (JOY_UP(joy)) {
         direction = 0; // UP
-        
-    } else if (paddle == 13) {
-        direction = 1; // RIGHT
-        
-    } else if (paddle == 12) {
-        direction = 2; // DOWN
-    } else if (paddle == 14) { 
-        direction = 3; // LEFT
     }
-    
-   /*
-   if ((paddle > 201 && paddle < 227) || (paddle < 27)) {
-        direction = 0; // UP
-        
-    } else if (paddle > 28 && paddle < 82) {
-        direction = 1; // RIGHT
-        
-    } else if (paddle > 83 && paddle < 137) {
+    else if (JOY_DOWN(joy)) {
         direction = 2; // DOWN
-    } else if (paddle > 138 && paddle < 201) { 
-        direction = 3; // LEFT
     }
-        */
+    if (JOY_RIGHT(joy)) {
+        direction = 1; // RIGHT
+    }
+    else if(JOY_LEFT(joy))
+    {
+        direction = 3;
+    }
+
     if(accelerate == 0)
     {
         score_counter++;
@@ -961,9 +928,11 @@ void update_scroll() {
             score += 10;
             gas--;
             score_counter = 0;
+            update_hud(score, gas);
         }
-        switch(direction) {
-            case 1: // RIGHT
+
+        if(JOY_RIGHT(joy)) // RIGHT
+        {
                 scroll_hold_counter_h++;
                 if (scroll_hold_counter_h == 8) scroll_speed_h = 1;
                 else if (scroll_hold_counter_h == 16) scroll_speed_h = 1;
@@ -971,18 +940,18 @@ void update_scroll() {
 
                 tiles_scrolled = scroll_speed_h;
                 blocked = false;
-
+                // Collision
                 for (i = 0; i <= scroll_speed_h; i++) {
                     test_x = camera_x + sprite_x + i + 1;
                     if (!is_walkable_column(test_x,
-                            camera_y + (sprite_y / 4) - 4,
+                            camera_y + (sprite_y / 4) - 3,
                             camera_y + (sprite_y / 4) - 2)) {
                         tiles_scrolled = i - 1;
                         blocked = true;
                         break;
                     }
                 }
-
+                // Scrolling logic
                 if (tiles_scrolled > 0) {
                     if (sprite_x < SPRITE_CENTER_X) {
                         if (sprite_x + tiles_scrolled > SPRITE_CENTER_X) {
@@ -1000,9 +969,9 @@ void update_scroll() {
                         memset((void*)PLAYER1_GFX, 0, 256);
                     }
                 }
-                break;
 
-            case 3: // LEFT
+        }
+        else if (JOY_LEFT(joy)) {// LEFT
                 scroll_hold_counter_h++;
                 if (scroll_hold_counter_h == 8) scroll_speed_h = 1;
                 else if (scroll_hold_counter_h == 16) scroll_speed_h = 1;
@@ -1014,7 +983,7 @@ void update_scroll() {
                 for (i = 1; i <= scroll_speed_h; i++) {
                     test_x = camera_x + sprite_x - 2 - i;
                     if (!is_walkable_column(test_x,
-                            camera_y + (sprite_y / 4) - 4,
+                            camera_y + (sprite_y / 4) - 3,
                             camera_y + (sprite_y / 4) - 2)) {
                         tiles_scrolled = i - 1;
                         blocked = true;
@@ -1039,9 +1008,10 @@ void update_scroll() {
                         memset((void*)PLAYER1_GFX, 0, 256);
                     }
                 }
-                break;
+            }
 
-            case 0: // UP
+        if(JOY_UP(joy)) // UP
+        {
                 scroll_hold_counter_v++;
                 if (scroll_hold_counter_v == 8) scroll_speed_v = 1;
                 else if (scroll_hold_counter_v == 16) scroll_speed_v = 1;
@@ -1074,9 +1044,9 @@ void update_scroll() {
                         memset((void*)PLAYER0_GFX, 0, 256);
                     }
                 }
-                break;
-
-            case 2: // DOWN
+            }
+        else if (JOY_DOWN(joy))
+        {// DOWN
                 scroll_hold_counter_v++;
                 if (scroll_hold_counter_v == 8) scroll_speed_v = 1;
                 else if (scroll_hold_counter_v == 16) scroll_speed_v = 1;
@@ -1110,25 +1080,18 @@ void update_scroll() {
                         memset((void*)PLAYER0_GFX, 0, 256);
                     }
                 }
-                break;
+                
         }
+
     }
     switch(direction){
-    case 0: load_sprite(SPRITE_UP, 0); break;
+    case 0: load_sprite(car_sprite_0, 0); break;
     case 1: load_right_facing_sprite(); break; 
-    case 2: load_sprite(SPRITE_DOWN, 0); break;
+    case 2: load_sprite(car_sprite_180, 0); break;
     case 3: load_left_facing_sprite(); break;
     }
 }
 
-void copy_sprites_to_buffer() {
-    memcpy(SPRITE_UP,        car_sprite_0,        16);
-    memcpy(SPRITE_DOWN,      car_sprite_180,      16);
-    memcpy(SPRITE_RIGHT_P0,  car_sprite_right_p0, 16);
-    memcpy(SPRITE_RIGHT_P1,  car_sprite_right_p1, 16);
-    memcpy(SPRITE_LEFT_P0,   car_sprite_left_p0,  16);
-    memcpy(SPRITE_LEFT_P1,   car_sprite_left_p1,  16);  
-}
 //static char score_buffer[11];  // Declare this outside of any function
 void init_tile_to_hpos() {
     unsigned int i;
@@ -1139,40 +1102,19 @@ void init_tile_to_hpos() {
 unsigned char gas_counter = 0;
 void main(void) {
     _graphics(13); 
- 
+   
     charmap = (unsigned char*)CHARMAP_ADDR;
     screen  = (unsigned char*)SCREEN_ADDR;
     // --- Clear charmap and screen ---
-    gas = 40;
-    score = 0;
     memset(charmap, 0, MAP_WIDTH * MAP_HEIGHT);
     memset(screen, 0, SCREEN_WIDTH * SCREEN_HEIGHT);  // No +40 here
     init_tile_to_hpos();
-    copy_sprites_to_buffer();
     POKE(710, 0x00);  // black background
-  
+
     POKE(623, 0);  // Clear ATASCII cursor
     //POKE(0xD301, 0xFF); 
     // --- Load ROM charset into custom space and override tile 1 (optional wall) ---
-    memcpy(CUSTOM_CHARSET, (void*)0xE000, 1024);
-    CUSTOM_CHARSET[1 * 8 + 0] = 0b00000000;
-    CUSTOM_CHARSET[1 * 8 + 1] = 0b00000000;
-    CUSTOM_CHARSET[1 * 8 + 2] = 0b00101000;
-    CUSTOM_CHARSET[1 * 8 + 3] = 0b00101000;
-    CUSTOM_CHARSET[1 * 8 + 4] = 0b00101000;
-    CUSTOM_CHARSET[1 * 8 + 5] = 0b00101000;
-    CUSTOM_CHARSET[1 * 8 + 6] = 0b00000000;
-    CUSTOM_CHARSET[1 * 8 + 7] = 0b00000000;
-    /*
-    CUSTOM_CHARSET[3 * 8 + 0] = 0b00101000;
-    CUSTOM_CHARSET[3 * 8 + 1] = 0b10101010;
-    CUSTOM_CHARSET[3 * 8 + 2] = 0b10101010;
-    CUSTOM_CHARSET[3 * 8 + 3] = 0b00101000;
-    CUSTOM_CHARSET[3 * 8 + 4] = 0b00101000;
-    CUSTOM_CHARSET[3 * 8 + 5] = 0b00101000;
-    CUSTOM_CHARSET[3 * 8 + 6] = 0b00000000;
-    CUSTOM_CHARSET[3 * 8 + 7] = 0b00000000;
-    */
+    memcpy(CUSTOM_CHARSET, (void*)0xE000, 1024);  
     POKE(756, ((unsigned int)CUSTOM_CHARSET) >> 8);
 
     // --- Setup HUD text in row 0 ---
@@ -1180,13 +1122,11 @@ void main(void) {
 
     // --- Install display list with 1 text row and 23 tile rows ---
     install_display_list();
-
+    direction = 0;
     // --- Populate tilemap and draw visible map (starting from screen row 1) ---
     characterMap();  
-
     draw_map();     
-    
-
+    joy_install(&joy_static_stddrv);
     // --- PMG Setup (order matters!) ---
     memset((void*)PMG_MEM, 0, 1024);           // Step 1: Clear PMG memory
     POKE(PMBASE, PMG_MEM >> 8);                // Step 2: Set PMG base address
@@ -1199,9 +1139,10 @@ void main(void) {
     POKE(SIZEP0, 0);
     POKE(SIZEP1, 0);
     update_hud(score, gas);
-    POKE(HPOSP0, xpos);  // Ensure xpos is in range 0–255
+
+    POKE(HPOSP0, 60);
     while (1) {
-        update_scroll();  // Handles camera and sprite movement   
+        //update_scroll();  // Handles camera and sprite movement   
         
     }
 }
