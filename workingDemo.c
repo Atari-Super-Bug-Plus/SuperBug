@@ -13,7 +13,7 @@
 #define CHARMAP_ADDR  0x6400
 #define SCREEN_ADDR   ((unsigned char*)0xB400)
 #define DISPLAY_LIST  0x6000
-#define SPRITE_TABLE_ADDR ((unsigned char*)0xBE50)
+#define SPRITE_TABLE_ADDR ((unsigned char*)0xBF40)
 #define HUD_BUFFER ((unsigned char*)0xBE00)
 #define SPRITE_BUFFER ((unsigned char*)0x0500)  // Pick a safe area not used by anything else
 
@@ -25,12 +25,6 @@
 #define SPRITE_LEFT_P0    (SPRITE_BUFFER + 0x40)
 #define SPRITE_LEFT_P1    (SPRITE_BUFFER + 0x50)
 
-#define gas_hund HUD_DIGIT_MEM[6]
-#define gas_tens HUD_DIGIT_MEM[7]
-#define gas_ones HUD_DIGIT_MEM[8]
-#define score_hund HUD_DIGIT_MEM[9]
-#define score_tens HUD_DIGIT_MEM[10]
-#define score_ones HUD_DIGIT_MEM[11]
 #define HSCROL  (*(unsigned char*)0xD404)  // Horizontal fine scroll register
 #define VCOUNT  (*(volatile unsigned char*)0xD40B)  // Current scanline
 
@@ -101,6 +95,11 @@ unsigned char sprite_y = 52;  // screen-relative Y position
 
 #define CENTER_MIN 40
 #define CENTER_MAX 150
+
+
+#define STUN_TIMER_ADDR 0xBCC0
+#define stun_timer (*(volatile unsigned char*)STUN_TIMER_ADDR)
+
 
 #define ROTATE_COOLDOWN_FRAMES 10000  // Tune this value for slower/faster rotation
 unsigned char rotate_cooldown = 0;
@@ -318,6 +317,7 @@ void characterMap()
 
     charmap[5 * MAP_WIDTH + 8] = 1;
     charmap[10 * MAP_WIDTH + 30] = 3;
+    //charmap[10 * MAP_WIDTH + 31] = 4;
     charmap[6 * MAP_WIDTH + 7] = 1;
     charmap[7 * MAP_WIDTH + 7] = 1;
 
@@ -889,7 +889,10 @@ void draw_map() {
     }
 }
 
-void update_hud(int hud_score, unsigned char hud_gas) {
+void update_hud(int hud_score, int hud_gas) {
+
+    unsigned int dis_score = hud_score;
+    unsigned int dis_gas = hud_gas;
 
     HUD_BUFFER[0]  = 'S' - 0x20;
     HUD_BUFFER[1]  = 'c';
@@ -897,35 +900,37 @@ void update_hud(int hud_score, unsigned char hud_gas) {
     HUD_BUFFER[3]  = 'r';
     HUD_BUFFER[4]  = 'e';
 
-    HUD_BUFFER[7] = (hud_score / 100) + '0'; // broken for some
-    HUD_BUFFER[8] = ((hud_score / 10) % 10) + 0x10;
+    HUD_BUFFER[7] = (dis_score / 10) % 10 + 0x10; // broken for some
+    HUD_BUFFER[8] = (dis_score % 10) + 0x10;
     HUD_BUFFER[9] = 0x10;
 
     HUD_BUFFER[25]  = 'G' - 0x20;
     HUD_BUFFER[26]  = 'a';
     HUD_BUFFER[27]  = 's';
 
-    HUD_BUFFER[30]  = (hud_gas / 10) % 10 + 0x10;
-    HUD_BUFFER[31]  = (hud_gas % 10) + 0x10;
+    HUD_BUFFER[30]  = (dis_gas / 10) % 10 + 0x10;
+    HUD_BUFFER[31]  = (dis_gas % 10) + 0x10;
     
     // Copy to top row of screen
     memcpy(SCREEN_ADDR, HUD_BUFFER, 32);
 }
 
 // PADDLE LOGIC  
-unsigned int score_counter = 0;
+
 unsigned char tiles_scrolled;
+unsigned char score_counter = 0;
+unsigned char gas_counter = 0;
+unsigned char stun_counter = 0;
 void update_scroll() {
+   
     unsigned char paddle;
     unsigned char accelerate = TRIG1;
     unsigned char direction;
-    bool blocked;
+    unsigned char blocked = 0;
     int test_x, test_y, i;
     while (VCOUNT > 8);
     while (VCOUNT <= 8);
-    
     paddle = PORTA & 0x0F;
-    update_hud(score, gas);
     // Custom paddle-to-direction mapping (CW, UP wraps around)
     
     if (paddle == 15) {
@@ -939,7 +944,12 @@ void update_scroll() {
     } else if (paddle == 14) { 
         direction = 3; // LEFT
     }
-    
+    gas_counter++;
+        if (gas_counter == 40)
+        {
+            gas -= 1;
+            gas_counter = 0;
+        }
    /*
    if ((paddle > 201 && paddle < 227) || (paddle < 27)) {
         direction = 0; // UP
@@ -953,13 +963,13 @@ void update_scroll() {
         direction = 3; // LEFT
     }
         */
+       
     if(accelerate == 0)
     {
         score_counter++;
         if (score_counter == 40)
         {
-            score += 10;
-            gas--;
+            score++;
             score_counter = 0;
         }
         switch(direction) {
@@ -970,7 +980,7 @@ void update_scroll() {
                 else if (scroll_hold_counter_h == 24) scroll_speed_h = 1;
 
                 tiles_scrolled = scroll_speed_h;
-                blocked = false;
+                //blocked = false;
 
                 for (i = 0; i <= scroll_speed_h; i++) {
                     test_x = camera_x + sprite_x + i + 1;
@@ -978,7 +988,7 @@ void update_scroll() {
                             camera_y + (sprite_y / 4) - 4,
                             camera_y + (sprite_y / 4) - 2)) {
                         tiles_scrolled = i - 1;
-                        blocked = true;
+                        blocked = 1;
                         break;
                     }
                 }
@@ -1009,7 +1019,7 @@ void update_scroll() {
                 else if (scroll_hold_counter_h == 24) scroll_speed_h = 1;
 
                 tiles_scrolled = scroll_speed_h;
-                blocked = false;
+                //blocked = false;
 
                 for (i = 1; i <= scroll_speed_h; i++) {
                     test_x = camera_x + sprite_x - 2 - i;
@@ -1017,7 +1027,7 @@ void update_scroll() {
                             camera_y + (sprite_y / 4) - 4,
                             camera_y + (sprite_y / 4) - 2)) {
                         tiles_scrolled = i - 1;
-                        blocked = true;
+                        blocked = 1;
                         break;
                     }
                 }
@@ -1048,7 +1058,7 @@ void update_scroll() {
                 else if (scroll_hold_counter_v == 24) scroll_speed_v = 1;
 
                 tiles_scrolled = scroll_speed_v;
-                blocked = false;
+                //blocked = 0;
 
                 for (i = 1; i <= scroll_speed_v; i++) {
                     test_y = camera_y + (sprite_y / 4) - 4 - i;
@@ -1056,7 +1066,6 @@ void update_scroll() {
                             camera_x + (int)sprite_x - 1,
                             camera_x + (int)sprite_x + 1)) {
                         tiles_scrolled = i - 1;
-                        blocked = true;
                         break;
                     }
                 }
@@ -1083,7 +1092,7 @@ void update_scroll() {
                 else if (scroll_hold_counter_v == 24) scroll_speed_v = 1;
 
                 tiles_scrolled = scroll_speed_v;
-                blocked = false;
+                //blocked = 0;
 
                 for (i = 1; i <= scroll_speed_v; i++) {
                     test_y = camera_y + (sprite_y / 4) - 1 + i;
@@ -1091,7 +1100,7 @@ void update_scroll() {
                             camera_x + (int)sprite_x - 1,
                             camera_x + (int)sprite_x + 1)) {
                         tiles_scrolled = i - 1;
-                        blocked = true;
+                        blocked = 1;
                         break;
                     }
                 }
@@ -1113,6 +1122,7 @@ void update_scroll() {
                 break;
         }
     }
+
     switch(direction){
     case 0: load_sprite(SPRITE_UP, 0); break;
     case 1: load_right_facing_sprite(); break; 
@@ -1136,15 +1146,18 @@ void init_tile_to_hpos() {
         tile_to_hpos[i] = 48 + (i * 4);  // Same as: 48, 52, ...
     }
 }
-unsigned char gas_counter = 0;
+
+
 void main(void) {
-    _graphics(13); 
- 
+    unsigned char tmp;
+    _graphics(13);  
+    
     charmap = (unsigned char*)CHARMAP_ADDR;
     screen  = (unsigned char*)SCREEN_ADDR;
     // --- Clear charmap and screen ---
     gas = 40;
     score = 0;
+    stun_timer = 0;
     memset(charmap, 0, MAP_WIDTH * MAP_HEIGHT);
     memset(screen, 0, SCREEN_WIDTH * SCREEN_HEIGHT);  // No +40 here
     init_tile_to_hpos();
@@ -1155,23 +1168,32 @@ void main(void) {
     //POKE(0xD301, 0xFF); 
     // --- Load ROM charset into custom space and override tile 1 (optional wall) ---
     memcpy(CUSTOM_CHARSET, (void*)0xE000, 1024);
-    CUSTOM_CHARSET[1 * 8 + 0] = 0b00000000;
-    CUSTOM_CHARSET[1 * 8 + 1] = 0b00000000;
+    CUSTOM_CHARSET[1 * 8 + 0] = 0b10000010;
+    CUSTOM_CHARSET[1 * 8 + 1] = 0b10000010;
     CUSTOM_CHARSET[1 * 8 + 2] = 0b00101000;
     CUSTOM_CHARSET[1 * 8 + 3] = 0b00101000;
     CUSTOM_CHARSET[1 * 8 + 4] = 0b00101000;
     CUSTOM_CHARSET[1 * 8 + 5] = 0b00101000;
-    CUSTOM_CHARSET[1 * 8 + 6] = 0b00000000;
-    CUSTOM_CHARSET[1 * 8 + 7] = 0b00000000;
-    /*
+    CUSTOM_CHARSET[1 * 8 + 6] = 0b10000010;
+    CUSTOM_CHARSET[1 * 8 + 7] = 0b10000010;
+    
     CUSTOM_CHARSET[3 * 8 + 0] = 0b00101000;
-    CUSTOM_CHARSET[3 * 8 + 1] = 0b10101010;
+    CUSTOM_CHARSET[3 * 8 + 1] = 0b00101000;
     CUSTOM_CHARSET[3 * 8 + 2] = 0b10101010;
-    CUSTOM_CHARSET[3 * 8 + 3] = 0b00101000;
+    CUSTOM_CHARSET[3 * 8 + 3] = 0b10101010;
     CUSTOM_CHARSET[3 * 8 + 4] = 0b00101000;
     CUSTOM_CHARSET[3 * 8 + 5] = 0b00101000;
-    CUSTOM_CHARSET[3 * 8 + 6] = 0b00000000;
+    CUSTOM_CHARSET[3 * 8 + 6] = 0b00101000;
     CUSTOM_CHARSET[3 * 8 + 7] = 0b00000000;
+   /*
+    CUSTOM_CHARSET[4 * 8 + 0] = 0b00101000;
+    CUSTOM_CHARSET[4 * 8 + 1] = 0b00101000;
+    CUSTOM_CHARSET[4 * 8 + 2] = 0b10101010;
+    CUSTOM_CHARSET[4 * 8 + 3] = 0b10101010;
+    CUSTOM_CHARSET[4 * 8 + 4] = 0b00101000;
+    CUSTOM_CHARSET[4 * 8 + 5] = 0b00101000;
+    CUSTOM_CHARSET[4 * 8 + 6] = 0b00101000;
+    CUSTOM_CHARSET[4 * 8 + 7] = 0b00000000;
     */
     POKE(756, ((unsigned int)CUSTOM_CHARSET) >> 8);
 
@@ -1201,8 +1223,11 @@ void main(void) {
     update_hud(score, gas);
     POKE(HPOSP0, xpos);  // Ensure xpos is in range 0–255
     while (1) {
+        while(gas)
+        {
         update_scroll();  // Handles camera and sprite movement   
-        
+        update_hud(score, gas);
+        }
     }
 }
 
