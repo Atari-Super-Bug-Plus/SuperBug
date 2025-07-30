@@ -37,14 +37,6 @@
 #define POTGO (*(unsigned char*)0xD20B)
 #define POT1 (*(unsigned char*)0x0270)
 
-#ifndef MIN
-  #define MIN(a,b) ((a) < (b) ? (a) : (b))
-#endif
-
-#ifndef MAX
-  #define MAX(a,b) ((a) > (b) ? (a) : (b))
-#endif
-
 #define STEPS_PER_KEY_PRESS 4
 
 // Hardware registers
@@ -81,10 +73,7 @@ unsigned char scroll_offset = 0;
 unsigned char pending_scroll_reset = 0;
 unsigned char camera_x = 0;
 unsigned char camera_y = 0;
-unsigned char scroll_speed_v = 1;
-unsigned char scroll_speed_h = 1;
-unsigned char scroll_hold_counter_v = 0;
-unsigned char scroll_hold_counter_h = 0;
+
 unsigned char sprite_x = 20;  // screen-relative X position
 unsigned char sprite_y = 52;  // screen-relative Y position
 #define SCORE_ADDR 0xBEF0
@@ -93,16 +82,11 @@ unsigned char sprite_y = 52;  // screen-relative Y position
 #define score (*(unsigned char*)SCORE_ADDR)
 #define gas   (*(unsigned char*)GAS_ADDR)
 
-#define CENTER_MIN 40
-#define CENTER_MAX 150
-
-
+#define scroll_hold_counter (*(unsigned char*)0xBDA0)
+#define scroll_speed (*(unsigned char*)0xBDA1)
+#define scroll_speed_h (*(unsigned char*)0xBDA2)
 #define STUN_TIMER_ADDR 0xBCC0
 #define stun_timer (*(volatile unsigned char*)STUN_TIMER_ADDR)
-
-
-#define ROTATE_COOLDOWN_FRAMES 10000  // Tune this value for slower/faster rotation
-unsigned char rotate_cooldown = 0;
 
 unsigned char xpos = 60;
 unsigned char direction = DIR_UP;
@@ -316,8 +300,6 @@ void characterMap()
     charmap[4 * MAP_WIDTH + 9] = 1;
 
     charmap[5 * MAP_WIDTH + 8] = 1;
-    charmap[10 * MAP_WIDTH + 30] = 3;
-    //charmap[10 * MAP_WIDTH + 31] = 4;
     charmap[6 * MAP_WIDTH + 7] = 1;
     charmap[7 * MAP_WIDTH + 7] = 1;
 
@@ -921,12 +903,13 @@ unsigned char tiles_scrolled;
 unsigned char score_counter = 0;
 unsigned char gas_counter = 0;
 unsigned char stun_counter = 0;
+unsigned char blocked = 0;
 void update_scroll() {
    
     unsigned char paddle;
     unsigned char accelerate = TRIG1;
     unsigned char direction;
-    unsigned char blocked = 0;
+ 
     int test_x, test_y, i;
     while (VCOUNT > 8);
     while (VCOUNT <= 8);
@@ -949,6 +932,7 @@ void update_scroll() {
         {
             gas -= 1;
             gas_counter = 0;
+            update_hud(score, gas);
         }
    /*
    if ((paddle > 201 && paddle < 227) || (paddle < 27)) {
@@ -963,27 +947,39 @@ void update_scroll() {
         direction = 3; // LEFT
     }
         */
-       
-    if(accelerate == 0)
+  
+    if (accelerate == 0)
     {
-        score_counter++;
-        if (score_counter == 40)
+        if (scroll_hold_counter < 25)
         {
-            score++;
-            score_counter = 0;
+            scroll_hold_counter++;
         }
-        switch(direction) {
-            case 1: // RIGHT
-                scroll_hold_counter_h++;
-                if (scroll_hold_counter_h == 8) scroll_speed_h = 1;
-                else if (scroll_hold_counter_h == 16) scroll_speed_h = 1;
-                else if (scroll_hold_counter_h == 24) scroll_speed_h = 1;
+    }
+    else
+    {
+        if (scroll_hold_counter > 0)
+        {
+            scroll_hold_counter--;
+        }
+    }
+    if(!blocked)
+    {
+       if (scroll_hold_counter > 24)
+            scroll_speed = 3;
+        else if (scroll_hold_counter > 16)
+            scroll_speed = 2;
+        else if (scroll_hold_counter > 8)
+            scroll_speed = 1;
+        else
+            scroll_speed = 0;
 
-                tiles_scrolled = scroll_speed_h;
+        if (direction == 1){ // RIGHT
+                
+                tiles_scrolled = scroll_speed;
                 //blocked = false;
 
-                for (i = 0; i <= scroll_speed_h; i++) {
-                    test_x = camera_x + sprite_x + i + 1;
+                for (i = 0; i <= scroll_speed; i++) {
+                    test_x = camera_x + sprite_x + i + 2;
                     if (!is_walkable_column(test_x,
                             camera_y + (sprite_y / 4) - 4,
                             camera_y + (sprite_y / 4) - 2)) {
@@ -1010,18 +1006,13 @@ void update_scroll() {
                         memset((void*)PLAYER1_GFX, 0, 256);
                     }
                 }
-                break;
-
-            case 3: // LEFT
-                scroll_hold_counter_h++;
-                if (scroll_hold_counter_h == 8) scroll_speed_h = 1;
-                else if (scroll_hold_counter_h == 16) scroll_speed_h = 1;
-                else if (scroll_hold_counter_h == 24) scroll_speed_h = 1;
-
-                tiles_scrolled = scroll_speed_h;
+            }
+            else if (direction == 3) // left
+            { // LEFT
+                tiles_scrolled = scroll_speed;
                 //blocked = false;
 
-                for (i = 1; i <= scroll_speed_h; i++) {
+                for (i = 1; i <= scroll_speed; i++) {
                     test_x = camera_x + sprite_x - 2 - i;
                     if (!is_walkable_column(test_x,
                             camera_y + (sprite_y / 4) - 4,
@@ -1049,23 +1040,20 @@ void update_scroll() {
                         memset((void*)PLAYER1_GFX, 0, 256);
                     }
                 }
-                break;
+            }
 
-            case 0: // UP
-                scroll_hold_counter_v++;
-                if (scroll_hold_counter_v == 8) scroll_speed_v = 1;
-                else if (scroll_hold_counter_v == 16) scroll_speed_v = 1;
-                else if (scroll_hold_counter_v == 24) scroll_speed_v = 1;
-
-                tiles_scrolled = scroll_speed_v;
+            if (direction == 0) // up
+            {
+                tiles_scrolled = scroll_speed;
                 //blocked = 0;
 
-                for (i = 1; i <= scroll_speed_v; i++) {
-                    test_y = camera_y + (sprite_y / 4) - 4 - i;
+                for (i = 1; i <= scroll_speed; i++) {
+                    test_y = camera_y + (sprite_y / 4) - 5 - i;
                     if (!is_walkable_row(test_y,
                             camera_x + (int)sprite_x - 1,
                             camera_x + (int)sprite_x + 1)) {
                         tiles_scrolled = i - 1;
+                        blocked = 1;
                         break;
                     }
                 }
@@ -1083,19 +1071,15 @@ void update_scroll() {
                         memset((void*)PLAYER0_GFX, 0, 256);
                     }
                 }
-                break;
+            }
+            else if (direction == 2) // down
+            {
 
-            case 2: // DOWN
-                scroll_hold_counter_v++;
-                if (scroll_hold_counter_v == 8) scroll_speed_v = 1;
-                else if (scroll_hold_counter_v == 16) scroll_speed_v = 1;
-                else if (scroll_hold_counter_v == 24) scroll_speed_v = 1;
-
-                tiles_scrolled = scroll_speed_v;
+                tiles_scrolled = scroll_speed;
                 //blocked = 0;
 
-                for (i = 1; i <= scroll_speed_v; i++) {
-                    test_y = camera_y + (sprite_y / 4) - 1 + i;
+                for (i = 1; i <= scroll_speed; i++) {
+                    test_y = camera_y + (sprite_y / 4) + i;
                     if (!is_walkable_row(test_y,
                             camera_x + (int)sprite_x - 1,
                             camera_x + (int)sprite_x + 1)) {
@@ -1119,10 +1103,21 @@ void update_scroll() {
                         memset((void*)PLAYER0_GFX, 0, 256);
                     }
                 }
-                break;
+            }
         }
+    else if (blocked == 1)
+    {
+        stun_timer++;
+        if (stun_timer == 90)
+        {
+            blocked = 0;
+            stun_timer = 0;
+        }
+        scroll_hold_counter = 0;
+
     }
 
+    
     switch(direction){
     case 0: load_sprite(SPRITE_UP, 0); break;
     case 1: load_right_facing_sprite(); break; 
@@ -1176,25 +1171,8 @@ void main(void) {
     CUSTOM_CHARSET[1 * 8 + 5] = 0b00101000;
     CUSTOM_CHARSET[1 * 8 + 6] = 0b10000010;
     CUSTOM_CHARSET[1 * 8 + 7] = 0b10000010;
-    
-    CUSTOM_CHARSET[3 * 8 + 0] = 0b00101000;
-    CUSTOM_CHARSET[3 * 8 + 1] = 0b00101000;
-    CUSTOM_CHARSET[3 * 8 + 2] = 0b10101010;
-    CUSTOM_CHARSET[3 * 8 + 3] = 0b10101010;
-    CUSTOM_CHARSET[3 * 8 + 4] = 0b00101000;
-    CUSTOM_CHARSET[3 * 8 + 5] = 0b00101000;
-    CUSTOM_CHARSET[3 * 8 + 6] = 0b00101000;
-    CUSTOM_CHARSET[3 * 8 + 7] = 0b00000000;
-   /*
-    CUSTOM_CHARSET[4 * 8 + 0] = 0b00101000;
-    CUSTOM_CHARSET[4 * 8 + 1] = 0b00101000;
-    CUSTOM_CHARSET[4 * 8 + 2] = 0b10101010;
-    CUSTOM_CHARSET[4 * 8 + 3] = 0b10101010;
-    CUSTOM_CHARSET[4 * 8 + 4] = 0b00101000;
-    CUSTOM_CHARSET[4 * 8 + 5] = 0b00101000;
-    CUSTOM_CHARSET[4 * 8 + 6] = 0b00101000;
-    CUSTOM_CHARSET[4 * 8 + 7] = 0b00000000;
-    */
+
+
     POKE(756, ((unsigned int)CUSTOM_CHARSET) >> 8);
 
     // --- Setup HUD text in row 0 ---
@@ -1208,7 +1186,6 @@ void main(void) {
 
     draw_map();     
     
-
     // --- PMG Setup (order matters!) ---
     memset((void*)PMG_MEM, 0, 1024);           // Step 1: Clear PMG memory
     POKE(PMBASE, PMG_MEM >> 8);                // Step 2: Set PMG base address
@@ -1225,8 +1202,7 @@ void main(void) {
     while (1) {
         while(gas)
         {
-        update_scroll();  // Handles camera and sprite movement   
-        update_hud(score, gas);
+        update_scroll();  // Handles camera and sprite movement  
         }
     }
 }
