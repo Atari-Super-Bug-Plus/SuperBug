@@ -18,12 +18,23 @@
 #define SPRITE_BUFFER ((unsigned char*)0x0500)  // Pick a safe area not used by anything else
 
 
-#define SPRITE_UP         (SPRITE_BUFFER + 0x00)
-#define SPRITE_DOWN       (SPRITE_BUFFER + 0x10)
-#define SPRITE_RIGHT_P0   (SPRITE_BUFFER + 0x20)
-#define SPRITE_RIGHT_P1   (SPRITE_BUFFER + 0x30)
-#define SPRITE_LEFT_P0    (SPRITE_BUFFER + 0x40)
-#define SPRITE_LEFT_P1    (SPRITE_BUFFER + 0x50)
+#define SPRITE_N_P0     (SPRITE_BUFFER + 0x00)
+#define SPRITE_N_P1     (SPRITE_BUFFER + 0x10)
+#define SPRITE_NE_P0    (SPRITE_BUFFER + 0x20)
+#define SPRITE_NE_P1    (SPRITE_BUFFER + 0x30)
+#define SPRITE_E_P0     (SPRITE_BUFFER + 0x40)
+#define SPRITE_E_P1     (SPRITE_BUFFER + 0x50)
+#define SPRITE_SE_P0    (SPRITE_BUFFER + 0x60)
+#define SPRITE_SE_P1    (SPRITE_BUFFER + 0x70)
+#define SPRITE_S_P0     (SPRITE_BUFFER + 0x80)
+#define SPRITE_S_P1     (SPRITE_BUFFER + 0x90)
+#define SPRITE_SW_P0    (SPRITE_BUFFER + 0xA0)
+#define SPRITE_SW_P1    (SPRITE_BUFFER + 0xB0)
+#define SPRITE_W_P0     (SPRITE_BUFFER + 0xC0)
+#define SPRITE_W_P1     (SPRITE_BUFFER + 0xD0)
+#define SPRITE_NW_P0    (SPRITE_BUFFER + 0xE0)
+#define SPRITE_NW_P1    (SPRITE_BUFFER + 0xF0)
+
 
 #define HSCROL  (*(unsigned char*)0xD404)  // Horizontal fine scroll register
 #define VCOUNT  (*(volatile unsigned char*)0xD40B)  // Current scanline
@@ -51,11 +62,6 @@
 #define COLOR1 705      // Color for player 1
 #define STICK0 632      // Joystick 0 value
 
-// Direction constants
-#define DIR_UP 0
-#define DIR_RIGHT 1
-#define DIR_DOWN 2
-#define DIR_LEFT 3
 
 #define TEXT_LINE      ((unsigned char*)SCREEN_ADDR)
 #define TILEMAP_START  (SCREEN_ADDR + 40)
@@ -81,6 +87,9 @@ unsigned char sprite_y = 52;  // screen-relative Y position
 
 #define score (*(unsigned char*)SCORE_ADDR)
 #define gas   (*(unsigned char*)GAS_ADDR)
+#define prev (*(unsigned char*)0xBFB2)
+
+#define orientation (*(volatile unsigned char*)0x0400)
 
 #define scroll_hold_counter (*(unsigned char*)0xBDA0)
 #define scroll_speed (*(unsigned char*)0xBDA1)
@@ -88,132 +97,350 @@ unsigned char sprite_y = 52;  // screen-relative Y position
 #define STUN_TIMER_ADDR 0xBCC0
 #define stun_timer (*(volatile unsigned char*)STUN_TIMER_ADDR)
 
-unsigned char xpos = 60;
-unsigned char direction = DIR_UP;
-unsigned char using_two_players = 0;  // Flag to track if we're using both players
-unsigned char prev_direction = 255;
-unsigned char last_steering = 0;  // 0 = neutral, 1 = left, 2 = right
+
+/* Orientation indices */
+#define ORIENT_N   0
+#define ORIENT_NE  1
+#define ORIENT_E   2
+#define ORIENT_SE  3
+#define ORIENT_S   4
+#define ORIENT_SW  5
+#define ORIENT_W   6
+#define ORIENT_NW  7
+
+
 
 unsigned char* tile_to_hpos = (unsigned char*)SPRITE_TABLE_ADDR; 
 
-// UP
-const unsigned char car_sprite_0[16] = {
-    0b00111100,
-    0b11111111,
+typedef struct {
+    unsigned char position;   // X for vertical, Y for horizontal
+    unsigned char begin;      // Start of strip (Y for vertical, X for horizontal)
+    unsigned char end;        // End of strip
+} Checkpoint;
+
+Checkpoint checkpoints_v[1];
+
+void init_checkpoints() {
+    // Vertical strips: (X position, Y range)
+    checkpoints_v[0].position = 30;
+    checkpoints_v[0].begin    = 0;
+    checkpoints_v[0].end      = 30;
+}
+
+/* --- N (Up) ---------------------------------------------------------- */
+const unsigned char car_N_p0[16] = {
+    0b00000111,
+    0b00001111,
+    0b00011100,
     0b00011000,
-    0b11011011,
-    0b11111111,
-    0b11011011,
-    0b00111100,
-    0b01100110,
-    0b01000010,
-    0b01000010,
-    0b11000011,
-    0b11000011,
-    0b11100111,
-    0b00111100,
-    0b11000011,
-    0b11111111
-};
-
-// Car sprite definition for down direction (8 pixels wide)
-const unsigned char car_sprite_180[16] = {
-    0b11111111,
-    0b11000011,
-    0b00111100,
-    0b11100111,
-    0b11000011,
-    0b11000011,
-    0b01000010,
-    0b01000010,
-    0b01100110,
-    0b00111100,
-    0b11011011,
-    0b11111111,
-    0b11011011,
     0b00011000,
-    0b11111111,
-    0b00111100
+    0b00011111,
+    0b00001111,
+    0b00001111,
+    0b00001111,
+    0b00011111,
+    0b00011111,
+    0b00011000,
+    0b00011100,
+    0b00001111,
+    0b00000111,
+    0b00000000,
+
+};
+const unsigned char car_N_p1[16] = {
+    0b11100000,
+    0b11110000,
+    0b00111000,
+    0b00011000,
+    0b00011000,
+    0b11111000,
+    0b11110000,
+    0b11110000,
+    0b11110000,
+    0b11111000,
+    0b11111000,
+    0b00011000,
+    0b00111000,
+    0b11110000,
+    0b11100000,
+    0b00000000,
+
 };
 
-// Right-facing car sprite - left half (player 0)
-const unsigned char car_sprite_right_p0[16] = {
-    0b11011100,  // Right edge of left half
-    0b11011111,
-    0b10110000,
-    0b10100000,
-    0b10100000,
-    0b10110000,
-    0b11011111,
-    0b11011100,
+/* --- NE (provisional = N OR E mix; edit!) ---------------------------- */
+const unsigned char car_NE_p0[16] = {
     0b00000000,
+    0b00000001,
     0b00000000,
+    0b00000001,
+    0b00000011,
+    0b00000111,
+    0b00001111,
+    0b01011111,
+    0b11110111,
+    0b11100011,
+    0b11110001,
+    0b01111000,
+    0b00111101,
+    0b00011111,
+    0b00001111,
+    0b00000111,
+
+};
+const unsigned char car_NE_p1[16] = {
+    0b11100000,
+    0b11111000,
+    0b11111100,
+    0b10011110,
+    0b00001110,
+    0b00000111,
+    0b10000111,
+    0b11001111,
+    0b11111010,
+    0b11110000,
+    0b11100000,
+    0b11000000,
+    0b10000000,
     0b00000000,
+    0b10000000,
     0b00000000,
-    0b00000000,
-    0b00000000,
-    0b00000000,
-    0b00000000
+
 };
 
-// Right-facing car sprite - right half (player 1)
-const unsigned char car_sprite_right_p1[16] = {
-    0b00111010,  // Left edge of right half
-    0b10111010,
-    0b11010011,
-    0b01111111,
-    0b01111111,
-    0b11010011, 
-    0b10111010,
-    0b00111010,
+/* --- E (Right) ------------------------------------------------------- */
+const unsigned char car_E_p0[16] = {
     0b00000000,
     0b00000000,
     0b00000000,
+    0b00011110,
+    0b00111111,
+    0b01110111,
+    0b01100111,
+    0b01100111,
+    0b01100111,
+    0b01100111,
+    0b01110111,
+    0b00111111,
+    0b00011110,
     0b00000000,
     0b00000000,
     0b00000000,
-    0b00000000,
-    0b00000000
 };
-
-// Left-facing car sprite - left half (player 0)
-const unsigned char car_sprite_left_p0[16] = {
-    0b01011100,  // Left edge of left half
-    0b01011101,
-    0b11001011,
+const unsigned char car_E_p1[16] = {
+    0b00000000,
+    0b00000000,
+    0b00000000,
+    0b00111100,
     0b11111110,
+    0b11100111,
+    0b11100011,
+    0b11100011,
+    0b11100011,
+    0b11100011,
+    0b11100111,
     0b11111110,
-    0b11001011,
-    0b01011101,
-    0b01011100,
+    0b00111100,
     0b00000000,
     0b00000000,
     0b00000000,
-    0b00000000,
-    0b00000000,
-    0b00000000,
-    0b00000000,
-    0b00000000
+
 };
 
-// Left-facing car sprite - right half (player 1)
-const unsigned char car_sprite_left_p1[16] = {
-    0b00111011,  // Right edge of right half
-    0b11111011,
-    0b00001101,
-    0b00000101,
-    0b00000101,
-    0b00001101,
-    0b11111011,
-    0b00111011,
+/* --- SE (provisional = S OR E mix; edit!) ---------------------------- */
+const unsigned char car_SE_p0[16] = {
+    0b00000111,
+    0b00001111,
+    0b00011111,
+    0b00111101,
+    0b01111000,
+    0b11110001,
+    0b11100011,
+    0b11110111,
+    0b01011111,
+    0b00001111,
+    0b00000111,
+    0b00000011,
+    0b00000001,
+    0b00000000,
+    0b00000001,
+    0b00000000,
+
+};
+const unsigned char car_SE_p1[16] = {
+    0b00000000,
+    0b10000000,
+    0b00000000,
+    0b10000000,
+    0b11000000,
+    0b11100000,
+    0b11110000,
+    0b11111010,
+    0b11001111,
+    0b10000111,
+    0b00000111,
+    0b00001110,
+    0b10011110,
+    0b11111100,
+    0b11111000,
+    0b11100000,
+
+};
+
+/* --- S (Down) -------------------------------------------------------- */
+const unsigned char car_S_p0[16] = {
+    0b00000000,
+    0b00000111,
+    0b00001111,
+    0b00011100,
+    0b00011000,
+    0b00011111,
+    0b00011111,
+    0b00001111,
+    0b00001111,
+    0b00001111,
+    0b00011111,
+    0b00011000,
+    0b00011000,
+    0b00011100,
+    0b00001111,
+    0b00000111,
+
+};
+const unsigned char car_S_p1[16] = {
+    0b00000000,
+    0b11100000,
+    0b11110000,
+    0b00111000,
+    0b00011000,
+    0b11111000,
+    0b11111000,
+    0b11110000,
+    0b11110000,
+    0b11110000,
+    0b11111000,
+    0b00011000,
+    0b00011000,
+    0b00111000,
+    0b11110000,
+    0b11100000,
+
+};
+
+/* --- SW (provisional = S OR W mix; edit!) ---------------------------- */
+const unsigned char car_SW_p0[16] = {
+    0b00000000,
+    0b00000001,
+    0b00000000,
+    0b00000001,
+    0b00000011,
+    0b00000111,
+    0b00001111,
+    0b01011111,
+    0b11110011,
+    0b11100001,
+    0b11100000,
+    0b01110000,
+    0b01111001,
+    0b00111111,
+    0b00011111,
+    0b00000111,
+};
+const unsigned char car_SW_p1[16] = {
+    0b11100000,
+    0b11110000,
+    0b11111000,
+    0b10111100,
+    0b00011110,
+    0b10001111,
+    0b11000111,
+    0b11101111,
+    0b11111010,
+    0b11110000,
+    0b11100000,
+    0b11000000,
+    0b10000000,
+    0b00000000,
+    0b10000000,
+    0b00000000,
+};
+
+/* --- W (Left) -------------------------------------------------------- */
+const unsigned char car_W_p0[16] = {
     0b00000000,
     0b00000000,
     0b00000000,
+    0b00111100,
+    0b01111111,
+    0b11100111,
+    0b11000111,
+    0b11000111,
+    0b11000111,
+    0b11000111,
+    0b11100111,
+    0b01111111,
+    0b00111100,
     0b00000000,
     0b00000000,
     0b00000000,
+};
+const unsigned char car_W_p1[16] = {
     0b00000000,
-    0b00000000
+    0b00000000,
+    0b00000000,
+    0b01111000,
+    0b11111100,
+    0b11101110,
+    0b11100110,
+    0b11100110,
+    0b11100110,
+    0b11100110,
+    0b11101110,
+    0b11111100,
+    0b01111000,
+    0b00000000,
+    0b00000000,
+    0b00000000,
+
+};
+
+/* --- NW (provisional = N OR W mix; edit!) ---------------------------- */
+const unsigned char car_NW_p0[16] = {
+    0b00000111,
+    0b00011111,
+    0b00111111,
+    0b01111001,
+    0b01110000,
+    0b11100000,
+    0b11100001,
+    0b11110011,
+    0b01011111,
+    0b00001111,
+    0b00000111,
+    0b00000011,
+    0b00000001,
+    0b00000000,
+    0b00000001,
+    0b00000000,
+
+};
+const unsigned char car_NW_p1[16] = {
+    0b00000000,
+    0b10000000,
+    0b00000000,
+    0b10000000,
+    0b11000000,
+    0b11100000,
+    0b11110000,
+    0b11111010,
+    0b11101111,
+    0b11000111,
+    0b10001111,
+    0b00011110,
+    0b10111100,
+    0b11111000,
+    0b11110000,
+    0b11100000,
+
 };
 
 void clear_players(void) {
@@ -221,7 +448,7 @@ void clear_players(void) {
     memset((void*)(PLAYER0_GFX), 0, 256);
     memset((void*)(PLAYER1_GFX), 0, 256);
 }
-
+/*
 void load_sprite(unsigned char* sprite, unsigned char player) {
     unsigned char i;
     unsigned int base = (player == 0) ? PLAYER0_GFX : PLAYER1_GFX;
@@ -243,8 +470,8 @@ void load_right_facing_sprite(void) {
     unsigned char i;
 
     for (i = 0; i < 16; i++) {
-        POKE(PLAYER0_GFX + sprite_y + i, SPRITE_RIGHT_P0[i]);
-        POKE(PLAYER1_GFX + sprite_y + i, SPRITE_RIGHT_P1[i]);
+        POKE(PLAYER0_GFX + sprite_y + i, SPRITE_E_P0[i]);
+        POKE(PLAYER1_GFX + sprite_y + i, SPRITE_E_P1[i]);
     }
     POKE(HPOSP0, tile_to_hpos[sprite_x]);
     POKE(HPOSP1, tile_to_hpos[sprite_x + 2]);
@@ -255,12 +482,39 @@ void load_left_facing_sprite(void) {
     
     // Draw left-facing sprite into Player 0 and Player 1 graphics memory
     for (i = 0; i < 16; i++) {
-        POKE(PLAYER0_GFX + sprite_y + i, SPRITE_LEFT_P0[i]);
-        POKE(PLAYER1_GFX + sprite_y + i, SPRITE_LEFT_P1[i]);
+        POKE(PLAYER0_GFX + sprite_y + i, SPRITE_W_P0[i]);
+        POKE(PLAYER1_GFX + sprite_y + i, SPRITE_W_P1[i]);
     }
     // Set horizontal positions for both players (offset for alignment)
     POKE(HPOSP0, tile_to_hpos[sprite_x]);
     POKE(HPOSP1, tile_to_hpos[sprite_x + 2]);
+}
+*/
+
+static void load16(const unsigned char* src0, const unsigned char* src1)
+{
+    unsigned char i;
+    for(i=0;i<16;++i){
+        POKE(PLAYER0_GFX + sprite_y + i, src0[i]);
+        POKE(PLAYER1_GFX + sprite_y + i, src1[i]);
+    }
+    POKE(HPOSP0, tile_to_hpos[sprite_x]); /* keep right half aligned */
+    POKE(HPOSP1, tile_to_hpos[sprite_x + 2]); /* keep right half aligned */
+}
+
+/* orientation dispatchers */
+static void load_car_sprite(unsigned char o)
+{
+    switch(o & 7){
+        case ORIENT_N:  load16(SPRITE_N_P0,  SPRITE_N_P1);  break;
+        case ORIENT_NE: load16(SPRITE_NE_P0, SPRITE_NE_P1); break;
+        case ORIENT_E:  load16(SPRITE_E_P0,  SPRITE_E_P1);  break;
+        case ORIENT_SE: load16(SPRITE_SE_P0, SPRITE_SE_P1); break;
+        case ORIENT_S:  load16(SPRITE_S_P0,  SPRITE_S_P1);  break;
+        case ORIENT_SW: load16(SPRITE_SW_P0, SPRITE_SW_P1); break;
+        case ORIENT_W:  load16(SPRITE_W_P0,  SPRITE_W_P1);  break;
+        case ORIENT_NW: load16(SPRITE_NW_P0, SPRITE_NW_P1); break;
+    }
 }
 
 bool is_walkable_column(int x, int y_start, int y_end) {
@@ -904,18 +1158,20 @@ unsigned char score_counter = 0;
 unsigned char gas_counter = 0;
 unsigned char stun_counter = 0;
 unsigned char blocked = 0;
+
 void update_scroll() {
-   
+    unsigned char o;
     unsigned char paddle;
     unsigned char accelerate = TRIG1;
-    unsigned char direction;
- 
+    unsigned char state;
+    
     int test_x, test_y, i;
     while (VCOUNT > 8);
     while (VCOUNT <= 8);
     paddle = PORTA & 0x0F;
+    o = orientation;
     // Custom paddle-to-direction mapping (CW, UP wraps around)
-    
+/*
     if (paddle == 15) {
         direction = 0; // UP
         
@@ -927,8 +1183,35 @@ void update_scroll() {
     } else if (paddle == 14) { 
         direction = 3; // LEFT
     }
+*/
+ state = (prev << 4) | paddle;
+
+switch (state) {
+    // CW
+    case 0xFD: // 15 → 13
+    case 0xDC: // 13 → 12
+    case 0xCE: // 12 → 14
+    case 0xEF: // 14 → 15
+        orientation = (orientation + 1) & 7;
+        prev = paddle;
+        break;
+
+    // CCW
+    case 0xFE: // 15 → 14
+    case 0xEC: // 14 → 12
+    case 0xCD: // 12 → 13
+    case 0xDF: // 13 → 15
+        orientation = (orientation - 1) & 7;
+        prev = paddle;
+        break;
+
+    default:
+        prev = paddle;  // resync if unknown transition
+        break;
+}
+    
     gas_counter++;
-        if (gas_counter == 40)
+        if (gas_counter == 90)
         {
             gas -= 1;
             gas_counter = 0;
@@ -947,7 +1230,7 @@ void update_scroll() {
         direction = 3; // LEFT
     }
         */
-  
+    
     if (accelerate == 0)
     {
         if (scroll_hold_counter < 25)
@@ -965,7 +1248,7 @@ void update_scroll() {
     if(!blocked)
     {
        if (scroll_hold_counter > 24)
-            scroll_speed = 3;
+            scroll_speed = 2;
         else if (scroll_hold_counter > 16)
             scroll_speed = 2;
         else if (scroll_hold_counter > 8)
@@ -973,9 +1256,11 @@ void update_scroll() {
         else
             scroll_speed = 0;
 
-        if (direction == 1){ // RIGHT
-                
-                tiles_scrolled = scroll_speed;
+        tiles_scrolled = scroll_speed;
+
+
+      
+        if (o == 1 || o == 2 || o == 3){ // EAST
                 //blocked = false;
 
                 for (i = 0; i <= scroll_speed; i++) {
@@ -1006,10 +1291,10 @@ void update_scroll() {
                         memset((void*)PLAYER1_GFX, 0, 256);
                     }
                 }
+                
             }
-            else if (direction == 3) // left
+        else if (o == 7 || o == 6 || o == 5) // left
             { // LEFT
-                tiles_scrolled = scroll_speed;
                 //blocked = false;
 
                 for (i = 1; i <= scroll_speed; i++) {
@@ -1042,9 +1327,8 @@ void update_scroll() {
                 }
             }
 
-            if (direction == 0) // up
+            if (o == 7 || o == 0 || o == 1) // up
             {
-                tiles_scrolled = scroll_speed;
                 //blocked = 0;
 
                 for (i = 1; i <= scroll_speed; i++) {
@@ -1072,12 +1356,8 @@ void update_scroll() {
                     }
                 }
             }
-            else if (direction == 2) // down
+            else if (o == 5 || o == 4 || o == 3) // down
             {
-
-                tiles_scrolled = scroll_speed;
-                //blocked = 0;
-
                 for (i = 1; i <= scroll_speed; i++) {
                     test_y = camera_y + (sprite_y / 4) + i;
                     if (!is_walkable_row(test_y,
@@ -1091,7 +1371,6 @@ void update_scroll() {
 
                 if (tiles_scrolled > 0) {
                     if (sprite_y < SPRITE_CENTER_Y) {
-                        memset((void*)PLAYER0_GFX, 0, 256);
                         sprite_y += tiles_scrolled * 4;
                         if (sprite_y > SPRITE_CENTER_Y) sprite_y = SPRITE_CENTER_Y;
                     } else if (camera_y + SCREEN_HEIGHT < MAP_HEIGHT) {
@@ -1100,7 +1379,6 @@ void update_scroll() {
                         pending_scroll_reset = 1;
                     } else {
                         sprite_y += tiles_scrolled * 4;
-                        memset((void*)PLAYER0_GFX, 0, 256);
                     }
                 }
             }
@@ -1118,22 +1396,28 @@ void update_scroll() {
     }
 
     
-    switch(direction){
-    case 0: load_sprite(SPRITE_UP, 0); break;
-    case 1: load_right_facing_sprite(); break; 
-    case 2: load_sprite(SPRITE_DOWN, 0); break;
-    case 3: load_left_facing_sprite(); break;
-    }
+  load_car_sprite(orientation);
 }
 
 void copy_sprites_to_buffer() {
-    memcpy(SPRITE_UP,        car_sprite_0,        16);
-    memcpy(SPRITE_DOWN,      car_sprite_180,      16);
-    memcpy(SPRITE_RIGHT_P0,  car_sprite_right_p0, 16);
-    memcpy(SPRITE_RIGHT_P1,  car_sprite_right_p1, 16);
-    memcpy(SPRITE_LEFT_P0,   car_sprite_left_p0,  16);
-    memcpy(SPRITE_LEFT_P1,   car_sprite_left_p1,  16);  
+    memcpy(SPRITE_N_P0,    car_N_p0,    16);
+    memcpy(SPRITE_N_P1,    car_N_p1,    16);
+    memcpy(SPRITE_NE_P0,   car_NE_p0,   16);
+    memcpy(SPRITE_NE_P1,   car_NE_p1,   16);
+    memcpy(SPRITE_E_P0,    car_E_p0,    16);
+    memcpy(SPRITE_E_P1,    car_E_p1,    16);
+    memcpy(SPRITE_SE_P0,   car_SE_p0,   16);
+    memcpy(SPRITE_SE_P1,   car_SE_p1,   16);
+    memcpy(SPRITE_S_P0,    car_S_p0,    16);
+    memcpy(SPRITE_S_P1,    car_S_p1,    16);
+    memcpy(SPRITE_SW_P0,   car_SW_p0,   16);
+    memcpy(SPRITE_SW_P1,   car_SW_p1,   16);
+    memcpy(SPRITE_W_P0,    car_W_p0,    16);
+    memcpy(SPRITE_W_P1,    car_W_p1,    16);
+    memcpy(SPRITE_NW_P0,   car_NW_p0,   16);
+    memcpy(SPRITE_NW_P1,   car_NW_p1,   16);
 }
+
 //static char score_buffer[11];  // Declare this outside of any function
 void init_tile_to_hpos() {
     unsigned int i;
@@ -1153,6 +1437,9 @@ void main(void) {
     gas = 40;
     score = 0;
     stun_timer = 0;
+    prev = 15;  // Start at 15
+    orientation = 0;
+    //direction_v = 0;
     memset(charmap, 0, MAP_WIDTH * MAP_HEIGHT);
     memset(screen, 0, SCREEN_WIDTH * SCREEN_HEIGHT);  // No +40 here
     init_tile_to_hpos();
@@ -1198,7 +1485,8 @@ void main(void) {
     POKE(SIZEP0, 0);
     POKE(SIZEP1, 0);
     update_hud(score, gas);
-    POKE(HPOSP0, xpos);  // Ensure xpos is in range 0–255
+    init_checkpoints();
+    POKE(HPOSP0, 60);  // Ensure xpos is in range 0–255
     while (1) {
         while(gas)
         {
@@ -1206,6 +1494,3 @@ void main(void) {
         }
     }
 }
-
-
-
