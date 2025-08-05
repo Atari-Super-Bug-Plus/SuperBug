@@ -63,9 +63,6 @@
 #define STICK0 632      // Joystick 0 value
 
 
-#define TEXT_LINE      ((unsigned char*)SCREEN_ADDR)
-#define TILEMAP_START  (SCREEN_ADDR + 40)
-
 #define SCREEN_HEIGHT 24
 #define SCREEN_WIDTH  40
 #define MAP_WIDTH     200
@@ -92,10 +89,12 @@ unsigned char sprite_y = 52;  // screen-relative Y position
 #define orientation (*(volatile unsigned char*)0x0400)
 
 #define scroll_hold_counter (*(unsigned char*)0xBDA0)
+
 #define scroll_speed (*(unsigned char*)0xBDA1)
-#define scroll_speed_h (*(unsigned char*)0xBDA2)
+#define gas_counter  (*(unsigned char*)0xBDA2)
 #define STUN_TIMER_ADDR 0xBCC0
 #define stun_timer (*(volatile unsigned char*)STUN_TIMER_ADDR)
+#define CHECKPOINTS_ADDR 0xBCC0
 
 
 /* Orientation indices */
@@ -118,7 +117,7 @@ typedef struct {
     unsigned char end;        // End of strip
 } Checkpoint;
 
-Checkpoint checkpoints_v[1];
+Checkpoint* checkpoints_v = (Checkpoint*)CHECKPOINTS_ADDR;
 
 void init_checkpoints() {
     // Vertical strips: (X position, Y range)
@@ -448,48 +447,7 @@ void clear_players(void) {
     memset((void*)(PLAYER0_GFX), 0, 256);
     memset((void*)(PLAYER1_GFX), 0, 256);
 }
-/*
-void load_sprite(unsigned char* sprite, unsigned char player) {
-    unsigned char i;
-    unsigned int base = (player == 0) ? PLAYER0_GFX : PLAYER1_GFX;
 
-    for (i = 0; i < 16; i++) {
-        POKE(base + sprite_y + i, sprite[i]);
-    }
-
-    if (player == 0) {
-        for (i = 0; i < 16; i++) {
-            POKE(PLAYER1_GFX + sprite_y + i, 0);  // Clear player 1 when using just player 0
-        }
-    }
-    POKE(HPOSP0, tile_to_hpos[sprite_x]);
-    
-}
-
-void load_right_facing_sprite(void) {
-    unsigned char i;
-
-    for (i = 0; i < 16; i++) {
-        POKE(PLAYER0_GFX + sprite_y + i, SPRITE_E_P0[i]);
-        POKE(PLAYER1_GFX + sprite_y + i, SPRITE_E_P1[i]);
-    }
-    POKE(HPOSP0, tile_to_hpos[sprite_x]);
-    POKE(HPOSP1, tile_to_hpos[sprite_x + 2]);
-}
-
-void load_left_facing_sprite(void) {
-    unsigned char i;
-    
-    // Draw left-facing sprite into Player 0 and Player 1 graphics memory
-    for (i = 0; i < 16; i++) {
-        POKE(PLAYER0_GFX + sprite_y + i, SPRITE_W_P0[i]);
-        POKE(PLAYER1_GFX + sprite_y + i, SPRITE_W_P1[i]);
-    }
-    // Set horizontal positions for both players (offset for alignment)
-    POKE(HPOSP0, tile_to_hpos[sprite_x]);
-    POKE(HPOSP1, tile_to_hpos[sprite_x + 2]);
-}
-*/
 
 static void load16(const unsigned char* src0, const unsigned char* src1)
 {
@@ -1114,7 +1072,7 @@ void install_display_list() {
 }
 
 void draw_map() {
-    unsigned char* dst = screen + SCREEN_WIDTH;  // Start at row 1 (screen[40])
+    unsigned char* dst = screen + SCREEN_WIDTH;  // Start at row 1 (row 0 is text line)
     unsigned char* src = &charmap[camera_y * MAP_WIDTH + camera_x];
     int row;
     
@@ -1151,85 +1109,63 @@ void update_hud(int hud_score, int hud_gas) {
     memcpy(SCREEN_ADDR, HUD_BUFFER, 32);
 }
 
-// PADDLE LOGIC  
+
+void check_score()
+{
+    unsigned char pos_x = sprite_x + camera_x;
+    if (pos_x == checkpoints_v[0].position)
+    {
+        score++;
+        checkpoints_v[0].position = 0;
+    }
+}
 
 unsigned char tiles_scrolled;
-unsigned char score_counter = 0;
-unsigned char gas_counter = 0;
-unsigned char stun_counter = 0;
 unsigned char blocked = 0;
-
+const unsigned char o_is_up[8] = {
+    1, 1, 0, 0, 0, 0, 0, 1
+};
 void update_scroll() {
     unsigned char o;
     unsigned char paddle;
     unsigned char accelerate = TRIG1;
     unsigned char state;
-    
     int test_x, test_y, i;
-    while (VCOUNT > 8);
-    while (VCOUNT <= 8);
+
     paddle = PORTA & 0x0F;
-    o = orientation;
-    // Custom paddle-to-direction mapping (CW, UP wraps around)
-/*
-    if (paddle == 15) {
-        direction = 0; // UP
-        
-    } else if (paddle == 13) {
-        direction = 1; // RIGHT
-        
-    } else if (paddle == 12) {
-        direction = 2; // DOWN
-    } else if (paddle == 14) { 
-        direction = 3; // LEFT
+    o = orientation;    
+    state = (prev << 4) | paddle;
+
+    switch (state) {
+        // CW
+        case 0xFD: // 15 → 13
+        case 0xDC: // 13 → 12
+        case 0xCE: // 12 → 14
+        case 0xEF: // 14 → 15
+            orientation = (orientation + 1) & 7;
+            prev = paddle;
+            break;
+
+        // CCW
+        case 0xFE: // 15 → 14
+        case 0xEC: // 14 → 12
+        case 0xCD: // 12 → 13
+        case 0xDF: // 13 → 15
+            orientation = (orientation - 1) & 7;
+            prev = paddle;
+            break;
+
+        default:
+            prev = paddle;  // resync if unknown transition
+            break;
     }
-*/
- state = (prev << 4) | paddle;
-
-switch (state) {
-    // CW
-    case 0xFD: // 15 → 13
-    case 0xDC: // 13 → 12
-    case 0xCE: // 12 → 14
-    case 0xEF: // 14 → 15
-        orientation = (orientation + 1) & 7;
-        prev = paddle;
-        break;
-
-    // CCW
-    case 0xFE: // 15 → 14
-    case 0xEC: // 14 → 12
-    case 0xCD: // 12 → 13
-    case 0xDF: // 13 → 15
-        orientation = (orientation - 1) & 7;
-        prev = paddle;
-        break;
-
-    default:
-        prev = paddle;  // resync if unknown transition
-        break;
-}
-    
     gas_counter++;
-        if (gas_counter == 90)
+        if (gas_counter == 40)
         {
             gas -= 1;
             gas_counter = 0;
             update_hud(score, gas);
         }
-   /*
-   if ((paddle > 201 && paddle < 227) || (paddle < 27)) {
-        direction = 0; // UP
-        
-    } else if (paddle > 28 && paddle < 82) {
-        direction = 1; // RIGHT
-        
-    } else if (paddle > 83 && paddle < 137) {
-        direction = 2; // DOWN
-    } else if (paddle > 138 && paddle < 201) { 
-        direction = 3; // LEFT
-    }
-        */
     
     if (accelerate == 0)
     {
@@ -1245,55 +1181,55 @@ switch (state) {
             scroll_hold_counter--;
         }
     }
-    if(!blocked)
-    {
-       if (scroll_hold_counter > 24)
-            scroll_speed = 2;
+    if (scroll_hold_counter > 24)
+            scroll_speed = 1;
         else if (scroll_hold_counter > 16)
-            scroll_speed = 2;
+            scroll_speed = 1;
         else if (scroll_hold_counter > 8)
             scroll_speed = 1;
         else
             scroll_speed = 0;
 
+    while (VCOUNT > 8);
+    while (VCOUNT <= 8);
+    if(!blocked)
+    {
+       
         tiles_scrolled = scroll_speed;
 
+            if (o >= 1 && o <= 3){ // EAST
+                    //blocked = false;
 
-      
-        if (o == 1 || o == 2 || o == 3){ // EAST
-                //blocked = false;
-
-                for (i = 0; i <= scroll_speed; i++) {
-                    test_x = camera_x + sprite_x + i + 2;
-                    if (!is_walkable_column(test_x,
-                            camera_y + (sprite_y / 4) - 4,
-                            camera_y + (sprite_y / 4) - 2)) {
-                        tiles_scrolled = i - 1;
-                        blocked = 1;
-                        break;
-                    }
-                }
-
-                if (tiles_scrolled > 0) {
-                    if (sprite_x < SPRITE_CENTER_X) {
-                        if (sprite_x + tiles_scrolled > SPRITE_CENTER_X) {
-                            sprite_x = SPRITE_CENTER_X;
-                        } else {
-                            sprite_x += tiles_scrolled;
+                    for (i = 0; i <= scroll_speed; i++) {
+                        test_x = camera_x + sprite_x + i + 2;
+                        if (!is_walkable_column(test_x,
+                                camera_y + (sprite_y / 4) - 4,
+                                camera_y + (sprite_y / 4) - 2)) {
+                            tiles_scrolled = i - 1;
+                            blocked = 1;
+                            break;
                         }
-                    } else if (camera_x < MAP_WIDTH - 42) {
-                        camera_x += tiles_scrolled;
-                        draw_map();
-                        pending_scroll_reset = 1;
-                    } else if (sprite_x + tiles_scrolled < 42) {
-                        sprite_x += tiles_scrolled;
-                        memset((void*)PLAYER0_GFX, 0, 256);
-                        memset((void*)PLAYER1_GFX, 0, 256);
                     }
-                }
-                
+
+                    if (tiles_scrolled > 0) {
+                        if (sprite_x < SPRITE_CENTER_X) {
+                            if (sprite_x + tiles_scrolled > SPRITE_CENTER_X) {
+                                sprite_x = SPRITE_CENTER_X;
+                            } else {
+                                sprite_x += tiles_scrolled;
+                            }
+                            memset((void*)PLAYER0_GFX, 0, 256);
+                        } else if (camera_x < MAP_WIDTH - 42) {
+                            camera_x += tiles_scrolled;
+                            draw_map();
+                        } else if (sprite_x + tiles_scrolled < 42) {
+                            sprite_x += tiles_scrolled;
+                            memset((void*)PLAYER0_GFX, 0, 256);
+                        }
+                    }
+                    
             }
-        else if (o == 7 || o == 6 || o == 5) // left
+        else if (o >= 5) // left
             { // LEFT
                 //blocked = false;
 
@@ -1315,19 +1251,18 @@ switch (state) {
                         } else {
                             sprite_x -= tiles_scrolled;
                         }
+                        memset((void*)PLAYER0_GFX, 0, 256);
                     } else if (camera_x > 0) {
                         camera_x -= tiles_scrolled;
                         draw_map();
-                        pending_scroll_reset = 1;
                     } else if (sprite_x - tiles_scrolled > 0) {
                         sprite_x -= tiles_scrolled;
                         memset((void*)PLAYER0_GFX, 0, 256);
-                        memset((void*)PLAYER1_GFX, 0, 256);
                     }
                 }
             }
 
-            if (o == 7 || o == 0 || o == 1) // up
+            if (o_is_up[o]) // up
             {
                 //blocked = 0;
 
@@ -1349,14 +1284,13 @@ switch (state) {
                     } else if (camera_y - tiles_scrolled >= 0) {
                         camera_y -= tiles_scrolled;
                         draw_map();
-                        pending_scroll_reset = 1;
                     } else {
                         sprite_y -= tiles_scrolled * 4;
                         memset((void*)PLAYER0_GFX, 0, 256);
                     }
                 }
             }
-            else if (o == 5 || o == 4 || o == 3) // down
+            else if (o >= 3 && o <= 5) // down
             {
                 for (i = 1; i <= scroll_speed; i++) {
                     test_y = camera_y + (sprite_y / 4) + i;
@@ -1373,27 +1307,28 @@ switch (state) {
                     if (sprite_y < SPRITE_CENTER_Y) {
                         sprite_y += tiles_scrolled * 4;
                         if (sprite_y > SPRITE_CENTER_Y) sprite_y = SPRITE_CENTER_Y;
+                        memset((void*)PLAYER0_GFX, 0, 256);
                     } else if (camera_y + SCREEN_HEIGHT < MAP_HEIGHT) {
                         camera_y += tiles_scrolled;
                         draw_map();
-                        pending_scroll_reset = 1;
                     } else {
                         sprite_y += tiles_scrolled * 4;
+                        memset((void*)PLAYER0_GFX, 0, 256);
                     }
                 }
             }
+        //check_score();
         }
-    else if (blocked == 1)
-    {
-        stun_timer++;
-        if (stun_timer == 90)
+        else if (blocked)
         {
-            blocked = 0;
-            stun_timer = 0;
+            stun_timer++;
+            if (stun_timer == 90)
+            {
+                blocked = 0;
+                stun_timer = 0;
+            }
         }
-        scroll_hold_counter = 0;
 
-    }
 
     
   load_car_sprite(orientation);
@@ -1428,9 +1363,9 @@ void init_tile_to_hpos() {
 
 
 void main(void) {
-    unsigned char tmp;
     _graphics(13);  
-    
+    POKE(0x02E0, (unsigned int)main & 0xFF);
+    POKE(0x02E1, (unsigned int)main >> 8);
     charmap = (unsigned char*)CHARMAP_ADDR;
     screen  = (unsigned char*)SCREEN_ADDR;
     // --- Clear charmap and screen ---
@@ -1439,9 +1374,12 @@ void main(void) {
     stun_timer = 0;
     prev = 15;  // Start at 15
     orientation = 0;
+    scroll_hold_counter = 0;
+    gas_counter = 0;
     //direction_v = 0;
     memset(charmap, 0, MAP_WIDTH * MAP_HEIGHT);
     memset(screen, 0, SCREEN_WIDTH * SCREEN_HEIGHT);  // No +40 here
+  
     init_tile_to_hpos();
     copy_sprites_to_buffer();
     POKE(710, 0x00);  // black background
@@ -1491,6 +1429,7 @@ void main(void) {
         while(gas)
         {
         update_scroll();  // Handles camera and sprite movement  
+        
         }
     }
 }
