@@ -48,8 +48,6 @@
 #define POTGO (*(unsigned char*)0xD20B)
 #define POT1 (*(unsigned char*)0x0270)
 
-#define STEPS_PER_KEY_PRESS 4
-
 // Hardware registers
 #define HPOSP0 53248    // Horizontal position of player 0
 #define HPOSP1 53249    // Horizontal position of player 1 
@@ -94,7 +92,7 @@ unsigned char sprite_y = 52;  // screen-relative Y position
 #define gas_counter  (*(unsigned char*)0xBDA2)
 #define STUN_TIMER_ADDR 0xBCC0
 #define stun_timer (*(volatile unsigned char*)STUN_TIMER_ADDR)
-#define CHECKPOINTS_ADDR 0xBCC0
+#define CHECKPOINTS_H_ADDR 0xBEA0
 
 
 /* Orientation indices */
@@ -108,23 +106,9 @@ unsigned char sprite_y = 52;  // screen-relative Y position
 #define ORIENT_NW  7
 
 
-
+// Lookup table to convert sprite_x tile to hpos value
 unsigned char* tile_to_hpos = (unsigned char*)SPRITE_TABLE_ADDR; 
 
-typedef struct {
-    unsigned char position;   // X for vertical, Y for horizontal
-    unsigned char begin;      // Start of strip (Y for vertical, X for horizontal)
-    unsigned char end;        // End of strip
-} Checkpoint;
-
-Checkpoint* checkpoints_v = (Checkpoint*)CHECKPOINTS_ADDR;
-
-void init_checkpoints() {
-    // Vertical strips: (X position, Y range)
-    checkpoints_v[0].position = 30;
-    checkpoints_v[0].begin    = 0;
-    checkpoints_v[0].end      = 30;
-}
 
 /* --- N (Up) ---------------------------------------------------------- */
 const unsigned char car_N_p0[16] = {
@@ -448,7 +432,7 @@ void clear_players(void) {
     memset((void*)(PLAYER1_GFX), 0, 256);
 }
 
-
+// Loads the appropriate sprite
 static void load16(const unsigned char* src0, const unsigned char* src1)
 {
     unsigned char i;
@@ -460,7 +444,7 @@ static void load16(const unsigned char* src0, const unsigned char* src1)
     POKE(HPOSP1, tile_to_hpos[sprite_x + 2]); /* keep right half aligned */
 }
 
-/* orientation dispatchers */
+// Loads the sprite based on the orientation
 static void load_car_sprite(unsigned char o)
 {
     switch(o & 7){
@@ -475,6 +459,7 @@ static void load_car_sprite(unsigned char o)
     }
 }
 
+// Checks if column that car is approaching is not blocking
 bool is_walkable_column(int x, int y_start, int y_end) {
     unsigned char y;
     for (y = y_start; y <= y_end; y++) {
@@ -484,6 +469,7 @@ bool is_walkable_column(int x, int y_start, int y_end) {
     return true;
 }
 
+// Checks if row that car is approaching is not blocking
 bool is_walkable_row(int y, int x_start, int x_end) {
     unsigned char x;
     for (x = x_start; x < x_end; x++) {
@@ -493,6 +479,7 @@ bool is_walkable_row(int y, int x_start, int x_end) {
     return true;
 }
 
+// Builds the character map of the road outline
 void characterMap()
 {
     int i;
@@ -1041,6 +1028,7 @@ void characterMap()
     charmap[3 * MAP_WIDTH + 103] = 1;
 }
 
+// Sets up the display list, one text line, 23 lines of game
 void install_display_list() {
 
     unsigned char* dl = (unsigned char*)DISPLAY_LIST;
@@ -1071,6 +1059,8 @@ void install_display_list() {
     POKE(561, (unsigned int)dl >> 8);
 }
 
+// Draws the map by copying the entire desired row
+// to the correct pointer in the screen pointer
 void draw_map() {
     unsigned char* dst = screen + SCREEN_WIDTH;  // Start at row 1 (row 0 is text line)
     unsigned char* src = &charmap[camera_y * MAP_WIDTH + camera_x];
@@ -1083,6 +1073,8 @@ void draw_map() {
     }
 }
 
+// Updates the text line of the screen with
+// the correct gas and score values
 void update_hud(int hud_score, int hud_gas) {
 
     unsigned int dis_score = hud_score;
@@ -1094,7 +1086,7 @@ void update_hud(int hud_score, int hud_gas) {
     HUD_BUFFER[3]  = 'r';
     HUD_BUFFER[4]  = 'e';
 
-    HUD_BUFFER[7] = (dis_score / 10) % 10 + 0x10; // broken for some
+    HUD_BUFFER[7] = (dis_score / 10) % 10 + 0x10;
     HUD_BUFFER[8] = (dis_score % 10) + 0x10;
     HUD_BUFFER[9] = 0x10;
 
@@ -1109,20 +1101,26 @@ void update_hud(int hud_score, int hud_gas) {
     memcpy(SCREEN_ADDR, HUD_BUFFER, 32);
 }
 
+unsigned char checkpoints_h[5] = {40, 60, 80, 0, 0};
+unsigned char checkpoints_v[5] = {30, 60, 90, 120, 150};
 
+// Checks the score, if the sprite is at one of the checkpoints
+// Increment the score 
 void check_score()
 {
-    unsigned char pos_x = sprite_x + camera_x;
-    if (pos_x == checkpoints_v[0].position)
-    {
-        score++;
-        checkpoints_v[0].position = 0;
+    unsigned char k; 
+    for (k = 0; k < 5; k++){
+        if (sprite_x + camera_x == checkpoints_v[k])
+        {
+            score++;
+        }
     }
+    
 }
 
-unsigned char tiles_scrolled;
-unsigned char blocked = 0;
-const unsigned char o_is_up[8] = {
+unsigned char tiles_scrolled; // Number of tiles scrolled
+unsigned char blocked = 0; // 0 - not blocked, 1 - blocked
+const unsigned char o_is_up[8] = { // Lookup table to tell if orientation is up
     1, 1, 0, 0, 0, 0, 0, 1
 };
 void update_scroll() {
@@ -1159,6 +1157,7 @@ void update_scroll() {
             prev = paddle;  // resync if unknown transition
             break;
     }
+
     gas_counter++;
         if (gas_counter == 40)
         {
@@ -1227,14 +1226,13 @@ void update_scroll() {
                             memset((void*)PLAYER0_GFX, 0, 256);
                         }
                     }
-                    
+                    check_score();
             }
         else if (o >= 5) // left
             { // LEFT
-                //blocked = false;
-
+                // Check Collisions
                 for (i = 1; i <= scroll_speed; i++) {
-                    test_x = camera_x + sprite_x - 2 - i;
+                    test_x = camera_x + sprite_x + 1 - i;
                     if (!is_walkable_column(test_x,
                             camera_y + (sprite_y / 4) - 4,
                             camera_y + (sprite_y / 4) - 2)) {
@@ -1243,23 +1241,24 @@ void update_scroll() {
                         break;
                     }
                 }
-
+                // Scroll
                 if (tiles_scrolled > 0) {
-                    if (sprite_x > SPRITE_CENTER_X) {
+                    if (sprite_x > SPRITE_CENTER_X) { // If sprite is not centered
                         if (sprite_x - tiles_scrolled < SPRITE_CENTER_X) {
                             sprite_x = SPRITE_CENTER_X;
                         } else {
                             sprite_x -= tiles_scrolled;
                         }
                         memset((void*)PLAYER0_GFX, 0, 256);
-                    } else if (camera_x > 0) {
+                    } else if (camera_x > 0) { // If sprite is centered
                         camera_x -= tiles_scrolled;
                         draw_map();
-                    } else if (sprite_x - tiles_scrolled > 0) {
+                    } else if (sprite_x - tiles_scrolled > 0) { // If we are at the edge of the map
                         sprite_x -= tiles_scrolled;
                         memset((void*)PLAYER0_GFX, 0, 256);
                     }
                 }
+                check_score();
             }
 
             if (o_is_up[o]) // up
@@ -1289,11 +1288,12 @@ void update_scroll() {
                         memset((void*)PLAYER0_GFX, 0, 256);
                     }
                 }
+                
             }
             else if (o >= 3 && o <= 5) // down
             {
                 for (i = 1; i <= scroll_speed; i++) {
-                    test_y = camera_y + (sprite_y / 4) + i;
+                    test_y = camera_y + (sprite_y / 4) - 2 + i;
                     if (!is_walkable_row(test_y,
                             camera_x + (int)sprite_x - 1,
                             camera_x + (int)sprite_x + 1)) {
@@ -1317,7 +1317,7 @@ void update_scroll() {
                     }
                 }
             }
-        //check_score();
+
         }
         else if (blocked)
         {
@@ -1362,31 +1362,27 @@ void init_tile_to_hpos() {
 }
 
 
-void main(void) {
+void game_loop(void) {
     _graphics(13);  
-    POKE(0x02E0, (unsigned int)main & 0xFF);
-    POKE(0x02E1, (unsigned int)main >> 8);
     charmap = (unsigned char*)CHARMAP_ADDR;
     screen  = (unsigned char*)SCREEN_ADDR;
-    // --- Clear charmap and screen ---
+
     gas = 40;
     score = 0;
     stun_timer = 0;
-    prev = 15;  // Start at 15
+    prev = 15;
     orientation = 0;
     scroll_hold_counter = 0;
     gas_counter = 0;
-    //direction_v = 0;
+
     memset(charmap, 0, MAP_WIDTH * MAP_HEIGHT);
-    memset(screen, 0, SCREEN_WIDTH * SCREEN_HEIGHT);  // No +40 here
-  
+    memset(screen, 0, SCREEN_WIDTH * SCREEN_HEIGHT);
+    
     init_tile_to_hpos();
     copy_sprites_to_buffer();
     POKE(710, 0x00);  // black background
-  
-    POKE(623, 0);  // Clear ATASCII cursor
-    //POKE(0xD301, 0xFF); 
-    // --- Load ROM charset into custom space and override tile 1 (optional wall) ---
+    POKE(623, 0);     // Clear ATASCII cursor
+
     memcpy(CUSTOM_CHARSET, (void*)0xE000, 1024);
     CUSTOM_CHARSET[1 * 8 + 0] = 0b10000010;
     CUSTOM_CHARSET[1 * 8 + 1] = 0b10000010;
@@ -1397,39 +1393,38 @@ void main(void) {
     CUSTOM_CHARSET[1 * 8 + 6] = 0b10000010;
     CUSTOM_CHARSET[1 * 8 + 7] = 0b10000010;
 
-
     POKE(756, ((unsigned int)CUSTOM_CHARSET) >> 8);
 
-    // --- Setup HUD text in row 0 ---
-    memset(screen, 0, SCREEN_WIDTH);  // Optional clear
-
-    // --- Install display list with 1 text row and 23 tile rows ---
+    memset(screen, 0, SCREEN_WIDTH);
     install_display_list();
-
-    // --- Populate tilemap and draw visible map (starting from screen row 1) ---
     characterMap();  
-
     draw_map();     
-    
-    // --- PMG Setup (order matters!) ---
-    memset((void*)PMG_MEM, 0, 1024);           // Step 1: Clear PMG memory
-    POKE(PMBASE, PMG_MEM >> 8);                // Step 2: Set PMG base address
-    POKE(GRACTL, 0x03);                        // Step 3: Enable player graphics
-    POKE(DMACTL, 0x2E);                        // Step 4: Enable PMG DMA
 
-    // --- Optional: Set color and size for player graphics ---
+    memset((void*)PMG_MEM, 0, 1024);
+    POKE(PMBASE, PMG_MEM >> 8);
+    POKE(GRACTL, 0x03);
+    POKE(DMACTL, 0x2E);
     POKE(COLOR0, 0xFE);
     POKE(COLOR1, 0xFE);
     POKE(SIZEP0, 0);
     POKE(SIZEP1, 0);
     update_hud(score, gas);
-    init_checkpoints();
-    POKE(HPOSP0, 60);  // Ensure xpos is in range 0–255
+    POKE(HPOSP0, 60);
+
     while (1) {
-        while(gas)
-        {
-        update_scroll();  // Handles camera and sprite movement  
-        
+        while(gas) {
+            update_scroll();
         }
     }
+}
+
+void main(void) {
+        // Install warm reset vector
+    POKE(0x000A, (unsigned)&game_loop & 0xFF);
+    POKE(0x000B, (unsigned)&game_loop >> 8);
+
+    // Clean out DOS jump behavior
+    POKE(0x02E0, 0);  // IOCB vector (optional)
+    POKE(0x000C, 0);  // DOSINI (disable re-init)
+    game_loop();  // Start the game
 }
