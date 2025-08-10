@@ -113,319 +113,320 @@ unsigned char* tile_to_hpos = (unsigned char*)SPRITE_TABLE_ADDR;
 /* --- N (Up) ---------------------------------------------------------- */
 const unsigned char car_N_p0[16] = {
     0b00000111,
-    0b00001111,
+    0b00001100,
+    0b00111110,
+    0b01110110,
+    0b01001111,
+    0b01110000,
+    0b01111000,
+    0b00111111,
+    0b00010111,
+    0b00010111,
+    0b00111011,
+    0b01111000,
+    0b01111100,
+    0b01111111,
+    0b00100111,
     0b00011100,
-    0b00011000,
-    0b00011000,
-    0b00011111,
-    0b00001111,
-    0b00001111,
-    0b00001111,
-    0b00011111,
-    0b00011111,
-    0b00011000,
-    0b00011100,
-    0b00001111,
-    0b00000111,
-    0b00000000,
-
 };
+
 const unsigned char car_N_p1[16] = {
     0b11100000,
-    0b11110000,
+    0b00110000,
+    0b01111100,
+    0b01101110,
+    0b11110010,
+    0b00001110,
+    0b00011110,
+    0b11111100,
+    0b11101000,
+    0b11101000,
+    0b11011100,
+    0b00011110,
+    0b00111110,
+    0b11111110,
+    0b11100100,
     0b00111000,
-    0b00011000,
-    0b00011000,
-    0b11111000,
-    0b11110000,
-    0b11110000,
-    0b11110000,
-    0b11111000,
-    0b11111000,
-    0b00011000,
-    0b00111000,
-    0b11110000,
-    0b11100000,
-    0b00000000,
-
 };
-
 /* --- NE (provisional = N OR E mix; edit!) ---------------------------- */
 const unsigned char car_NE_p0[16] = {
-    0b00000000,
     0b00000001,
-    0b00000000,
-    0b00000001,
-    0b00000011,
+    0b00000011, 
+    0b00000111, 
+    0b00000110,
     0b00000111,
     0b00001111,
-    0b01011111,
-    0b11110111,
-    0b11100011,
-    0b11110001,
-    0b01111000,
-    0b00111101,
-    0b00011111,
-    0b00001111,
-    0b00000111,
+    0b01111101, 
+    0b11111011,
+    0b11111011,  
+    0b11011001,  
+    0b01101100,  
+    0b01111111, 
+    0b00011011, 
+    0b00001101, 
+    0b00001111, 
+    0b00000011, 
 
 };
 const unsigned char car_NE_p1[16] = {
-    0b11100000,
-    0b11111000,
-    0b11111100,
-    0b10011110,
-    0b00001110,
-    0b00000111,
-    0b10000111,
-    0b11001111,
-    0b11111010,
-    0b11110000,
+    0b11000000,
+    0b01111000,
+    0b10101100,
+    0b01110110,
+    0b00101010,
+    0b00011110,
+    0b10001011,
+    0b11000101,
+    0b11110111,
+    0b10111110,
+    0b01111100,
     0b11100000,
     0b11000000,
+    0b11000000,
+    0b11000000,
     0b10000000,
-    0b00000000,
-    0b10000000,
-    0b00000000,
 
 };
 
 /* --- E (Right) ------------------------------------------------------- */
 const unsigned char car_E_p0[16] = {
     0b00000000,
-    0b00000000,
-    0b00000000,
-    0b00011110,
-    0b00111111,
-    0b01110111,
+    0b00111000,
+    0b01111100,
+    0b10111111,
+    0b10111100,
+    0b11110011,
     0b01100111,
     0b01100111,
     0b01100111,
     0b01100111,
-    0b01110111,
-    0b00111111,
-    0b00011110,
-    0b00000000,
-    0b00000000,
+    0b11110011,
+    0b10111100,
+    0b10111111,
+    0b01111100,
+    0b00111000,
     0b00000000,
 };
 const unsigned char car_E_p1[16] = {
     0b00000000,
-    0b00000000,
-    0b00000000,
-    0b00111100,
-    0b11111110,
-    0b11100111,
-    0b11100011,
-    0b11100011,
-    0b11100011,
-    0b11100011,
-    0b11100111,
-    0b11111110,
-    0b00111100,
-    0b00000000,
-    0b00000000,
+    0b01111000,
+    0b11101100,
+    0b11101100,
+    0b11010110,
+    0b10011111,
+    0b10011101,
+    0b10010001,
+    0b10010001,
+    0b10011101,
+    0b10011111,
+    0b11010110,
+    0b11101100,
+    0b11101100,
+    0b01111000,
     0b00000000,
 
 };
 
 /* --- SE (provisional = S OR E mix; edit!) ---------------------------- */
 const unsigned char car_SE_p0[16] = {
+    0b00000011,
+    0b00001111,
+    0b00001101,
+    0b00011011,
+    0b01111111,
+    0b01101100,
+    0b11011001,
+    0b11111011,
+    0b11111011,
+    0b01111101,
+    0b00001111,
     0b00000111,
-    0b00001111,
-    0b00011111,
-    0b00111101,
-    0b01111000,
-    0b11110001,
-    0b11100011,
-    0b11110111,
-    0b01011111,
-    0b00001111,
+    0b00000110,
     0b00000111,
     0b00000011,
     0b00000001,
-    0b00000000,
-    0b00000001,
-    0b00000000,
-
 };
+
 const unsigned char car_SE_p1[16] = {
-    0b00000000,
-    0b10000000,
-    0b00000000,
     0b10000000,
     0b11000000,
+    0b11000000,
+    0b11000000,
     0b11100000,
-    0b11110000,
-    0b11111010,
-    0b11001111,
-    0b10000111,
-    0b00000111,
-    0b00001110,
-    0b10011110,
-    0b11111100,
-    0b11111000,
-    0b11100000,
-
+    0b01111100,
+    0b10111110,
+    0b11110111,
+    0b11000101,
+    0b10001011,
+    0b00011110,
+    0b00101010,
+    0b01110110,
+    0b10101100,
+    0b01111000,
+    0b11000000,
 };
+
 
 /* --- S (Down) -------------------------------------------------------- */
 const unsigned char car_S_p0[16] = {
-    0b00000000,
-    0b00000111,
-    0b00001111,
     0b00011100,
-    0b00011000,
-    0b00011111,
-    0b00011111,
-    0b00001111,
-    0b00001111,
-    0b00001111,
-    0b00011111,
-    0b00011000,
-    0b00011000,
-    0b00011100,
-    0b00001111,
+    0b00100111,
+    0b01111111,
+    0b01111100,
+    0b01111000,
+    0b00111011,
+    0b00010111,
+    0b00010111,
+    0b00111111,
+    0b01110000,
+    0b01111000,
+    0b01001111,
+    0b01110110,
+    0b00111110,
+    0b00001100,
     0b00000111,
 
 };
 const unsigned char car_S_p1[16] = {
-    0b00000000,
-    0b11100000,
-    0b11110000,
     0b00111000,
-    0b00011000,
-    0b11111000,
-    0b11111000,
-    0b11110000,
-    0b11110000,
-    0b11110000,
-    0b11111000,
-    0b00011000,
-    0b00011000,
-    0b00111000,
-    0b11110000,
+    0b11100100,
+    0b11111110,
+    0b00111110,
+    0b00011110,
+    0b11011100,
+    0b11101000,
+    0b11101000,
+    0b11111100,
+    0b00001110,
+    0b00011110,
+    0b11110010,
+    0b01101110,
+    0b01111100,
+    0b00110000,
     0b11100000,
 
 };
 
 /* --- SW (provisional = S OR W mix; edit!) ---------------------------- */
 const unsigned char car_SW_p0[16] = {
-    0b00000000,
-    0b00000001,
-    0b00000000,
     0b00000001,
     0b00000011,
+    0b00000011,
+    0b00000011,
     0b00000111,
-    0b00001111,
-    0b01011111,
-    0b11110011,
-    0b11100001,
-    0b11100000,
-    0b01110000,
-    0b01111001,
-    0b00111111,
-    0b00011111,
-    0b00000111,
-};
-const unsigned char car_SW_p1[16] = {
-    0b11100000,
-    0b11110000,
-    0b11111000,
-    0b10111100,
-    0b00011110,
-    0b10001111,
-    0b11000111,
+    0b00111110,
+    0b01111101,
     0b11101111,
-    0b11111010,
+    0b10100011,
+    0b11010001,
+    0b01111000,
+    0b01010100,
+    0b01101110,
+    0b00110101,
+    0b00011110,
+    0b00000011,
+};
+
+const unsigned char car_SW_p1[16] = {
+    0b11000000,
     0b11110000,
+    0b10110000,
+    0b11011000,
+    0b11111110,
+    0b00110110,
+    0b10011011,
+    0b11011111,
+    0b11011111,
+    0b10111110,
+    0b11110000,
+    0b11100000,
+    0b01100000,
     0b11100000,
     0b11000000,
     0b10000000,
-    0b00000000,
-    0b10000000,
-    0b00000000,
 };
 
 /* --- W (Left) -------------------------------------------------------- */
 const unsigned char car_W_p0[16] = {
     0b00000000,
+    0b00011110,
+    0b00110111,
+    0b00110111,
+    0b01101011,
+    0b11111001,
+    0b10111001,
+    0b10001001,
+    0b10001001,
+    0b10111001,
+    0b11111001,
+    0b01101011,
+    0b00110111,
+    0b00110111,
+    0b00011110,
     0b00000000,
-    0b00000000,
-    0b00111100,
-    0b01111111,
-    0b11100111,
-    0b11000111,
-    0b11000111,
-    0b11000111,
-    0b11000111,
-    0b11100111,
-    0b01111111,
-    0b00111100,
-    0b00000000,
-    0b00000000,
-    0b00000000,
+    
 };
+
+
 const unsigned char car_W_p1[16] = {
     0b00000000,
-    0b00000000,
-    0b00000000,
-    0b01111000,
-    0b11111100,
-    0b11101110,
+    0b00011100,
+    0b00111110,
+    0b11111101,
+    0b00111101,
+    0b11001111,
     0b11100110,
     0b11100110,
     0b11100110,
     0b11100110,
-    0b11101110,
-    0b11111100,
-    0b01111000,
+    0b11001111,
+    0b00111101,
+    0b11111101,
+    0b00111110,
+    0b00011100,
     0b00000000,
-    0b00000000,
-    0b00000000,
-
 };
+
+
 
 /* --- NW (provisional = N OR W mix; edit!) ---------------------------- */
 const unsigned char car_NW_p0[16] = {
-    0b00000111,
-    0b00011111,
-    0b00111111,
-    0b01111001,
-    0b01110000,
-    0b11100000,
-    0b11100001,
-    0b11110011,
-    0b01011111,
-    0b00001111,
+    0b00000011,
+    0b00011110,
+    0b00110101,
+    0b01101110,
+    0b01010100,
+    0b01111000,
+    0b11010001,
+    0b10100011,
+    0b11101111,
+    0b01111101,
+    0b00111110,
     0b00000111,
     0b00000011,
+    0b00000011,
+    0b00000011,
     0b00000001,
-    0b00000000,
-    0b00000001,
-    0b00000000,
-
 };
+
 const unsigned char car_NW_p1[16] = {
-    0b00000000,
-    0b10000000,
-    0b00000000,
     0b10000000,
     0b11000000,
     0b11100000,
-    0b11110000,
-    0b11111010,
-    0b11101111,
-    0b11000111,
-    0b10001111,
-    0b00011110,
-    0b10111100,
-    0b11111000,
-    0b11110000,
+    0b01100000,
     0b11100000,
-
+    0b11110000,
+    0b10111110,
+    0b11011111,
+    0b11011111,
+    0b10011011,
+    0b00110110,
+    0b11111110,
+    0b11011000,
+    0b10110000,
+    0b11110000,
+    0b11000000,
 };
-
 void clear_players(void) {
     // Use memset for efficiency
     memset((void*)(PLAYER0_GFX), 0, 256);
@@ -856,12 +857,12 @@ void characterMap()
     charmap[82 * MAP_WIDTH + 173] = 1;
     charmap[81 * MAP_WIDTH + 173] = 1;
 
-    for (i = 80; i > 19; i--)
+    for (i = 80; i > 19; i -= 2)
     {
         charmap[i * MAP_WIDTH + 174] = 1;
     }
 
-    for (i = 90; i > 10; i--)
+    for (i = 90; i > 10; i -= 2)
     {
         charmap[i * MAP_WIDTH + 194] = 1;
     }
@@ -1075,30 +1076,33 @@ void draw_map() {
 
 // Updates the text line of the screen with
 // the correct gas and score values
-void update_hud(int hud_score, int hud_gas) {
+void update_hud(unsigned int hud_score, unsigned int hud_gas) {
 
     unsigned int dis_score = hud_score;
     unsigned int dis_gas = hud_gas;
 
     HUD_BUFFER[0]  = 'S' - 0x20;
-    HUD_BUFFER[1]  = 'c';
-    HUD_BUFFER[2]  = 'o';
-    HUD_BUFFER[3]  = 'r';
-    HUD_BUFFER[4]  = 'e';
+    HUD_BUFFER[1]  = 'C' - 0x20;
+    HUD_BUFFER[2]  = 'O' - 0x20;
+    HUD_BUFFER[3]  = 'R' - 0x20;
+    HUD_BUFFER[4]  = 'E' - 0x20;
 
     HUD_BUFFER[7] = (dis_score / 10) % 10 + 0x10;
     HUD_BUFFER[8] = (dis_score % 10) + 0x10;
     HUD_BUFFER[9] = 0x10;
 
-    HUD_BUFFER[25]  = 'G' - 0x20;
-    HUD_BUFFER[26]  = 'a';
-    HUD_BUFFER[27]  = 's';
+    HUD_BUFFER[26]  = 'F' - 0x20;
+    HUD_BUFFER[27]  = 'U' - 0x20;
+    HUD_BUFFER[28]  = 'E' - 0x20;
+    HUD_BUFFER[29]  = 'L' - 0x20;
 
-    HUD_BUFFER[30]  = (dis_gas / 10) % 10 + 0x10;
-    HUD_BUFFER[31]  = (dis_gas % 10) + 0x10;
-    
+    HUD_BUFFER[31]  = dis_gas / 10 + 0x10;
+    HUD_BUFFER[32] = (dis_gas % 10) + 0x10;
+
     // Copy to top row of screen
-    memcpy(SCREEN_ADDR, HUD_BUFFER, 32);
+    memcpy(SCREEN_ADDR, HUD_BUFFER, 40);
+
+
 }
 
 unsigned char checkpoints_h[5] = {40, 60, 80, 0, 0};
@@ -1181,19 +1185,30 @@ void update_scroll() {
         }
     }
     if (scroll_hold_counter > 24)
-            scroll_speed = 1;
-        else if (scroll_hold_counter > 16)
-            scroll_speed = 1;
-        else if (scroll_hold_counter > 8)
-            scroll_speed = 1;
-        else
-            scroll_speed = 0;
+    {
+        scroll_speed = 1;
+    }
+    else if (scroll_hold_counter > 16)
+    {
+        scroll_speed = 1;
+    }
+    else if (scroll_hold_counter > 8)
+    {
+        POKE(0xD202, 80);   // Set frequency
+        POKE(0xD203, 0x21); // Set tone + volume
+        scroll_speed = 1;
+    }
+    else
+    {
+        POKE(0xD203, 0x20); // Set tone + volume
+        scroll_speed = 0;
+    }
 
     while (VCOUNT > 8);
     while (VCOUNT <= 8);
     if(!blocked)
     {
-       
+ 
         tiles_scrolled = scroll_speed;
 
             if (o >= 1 && o <= 3){ // EAST
@@ -1211,6 +1226,7 @@ void update_scroll() {
                     }
 
                     if (tiles_scrolled > 0) {
+
                         if (sprite_x < SPRITE_CENTER_X) {
                             if (sprite_x + tiles_scrolled > SPRITE_CENTER_X) {
                                 sprite_x = SPRITE_CENTER_X;
@@ -1225,14 +1241,15 @@ void update_scroll() {
                             sprite_x += tiles_scrolled;
                             memset((void*)PLAYER0_GFX, 0, 256);
                         }
+                        check_score();
                     }
-                    check_score();
+                    
             }
         else if (o >= 5) // left
             { // LEFT
                 // Check Collisions
                 for (i = 1; i <= scroll_speed; i++) {
-                    test_x = camera_x + sprite_x + 1 - i;
+                    test_x = camera_x + sprite_x + 1- i;
                     if (!is_walkable_column(test_x,
                             camera_y + (sprite_y / 4) - 4,
                             camera_y + (sprite_y / 4) - 2)) {
@@ -1257,8 +1274,9 @@ void update_scroll() {
                         sprite_x -= tiles_scrolled;
                         memset((void*)PLAYER0_GFX, 0, 256);
                     }
+                    check_score();
                 }
-                check_score();
+                
             }
 
             if (o_is_up[o]) // up
@@ -1308,7 +1326,7 @@ void update_scroll() {
                         sprite_y += tiles_scrolled * 4;
                         if (sprite_y > SPRITE_CENTER_Y) sprite_y = SPRITE_CENTER_Y;
                         memset((void*)PLAYER0_GFX, 0, 256);
-                    } else if (camera_y + SCREEN_HEIGHT < MAP_HEIGHT) {
+                    } else if (camera_y + SCREEN_HEIGHT <= MAP_HEIGHT) {
                         camera_y += tiles_scrolled;
                         draw_map();
                     } else {
@@ -1321,16 +1339,17 @@ void update_scroll() {
         }
         else if (blocked)
         {
+            //POKE(0xD203, 0x41); // Set tone + volume
             stun_timer++;
             if (stun_timer == 90)
             {
                 blocked = 0;
                 stun_timer = 0;
+               
             }
+
         }
 
-
-    
   load_car_sprite(orientation);
 }
 
@@ -1414,8 +1433,10 @@ void game_loop(void) {
     while (1) {
         while(gas) {
             update_scroll();
+            //POKE(0xD202, 120);   // Set frequency
         }
     }
+        
 }
 
 void main(void) {
@@ -1426,5 +1447,6 @@ void main(void) {
     // Clean out DOS jump behavior
     POKE(0x02E0, 0);  // IOCB vector (optional)
     POKE(0x000C, 0);  // DOSINI (disable re-init)
+
     game_loop();  // Start the game
 }
