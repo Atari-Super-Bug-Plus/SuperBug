@@ -487,3 +487,4 @@ void main(void)
         POKE(HPOSP1, xpos + 8);
     }
 }
+
