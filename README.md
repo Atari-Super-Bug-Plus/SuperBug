@@ -1,40 +1,85 @@
-Project Overview
-Project Overview
+### Project Overview
 
 The Superbug Capstone Project recreated Atari’s 1977 arcade game Superbug for the Atari 8-bit computer line. The game was developed in C using the Atari C libraries and compiled with the cc65 compiler into a .xex file, playable on both emulators and native Atari hardware.
 
-The project’s goal was to faithfully reimagine Superbug while working under the strict memory, resolution, and performance constraints of the Atari 1200XL and 800 systems. It emphasized low-level programming, tile-map graphics, sprite animation, scrolling mechanisms, collision logic, sound design, and user interface development.
+The project’s goal was to faithfully reimagine Superbug while working under the strict memory, resolution, and performance constraints of the Atari 1200XL and 800 systems. It emphasized low-level programming and memory managament.
 
-Key Features
+#### Key Features
 
 ```
-Scrolling Tile-Map: Implemented a dynamic tile-based track with horizontal scrolling.
+Display List Management: Used the built in display list to display a tilemap that was stored in memory.
+
+Tile-Map Scrolling: Implemented a dynamic horizontal and vertical scrolling for the tilemap.
 
 Sprite-Based Animation: Developed an 8-directional car sprite using player/missile graphics.
 
 Collision Detection: Added logic for boundary crashes and scoring checkpoints.
 
-Rotary Controller Input: Supported orientation and movement control through PORTA register reads.
+Rotary Controller Input: Supported player movement controls through PORTA register reads.
 
 HUD Display: Real-time score and fuel logic with a top-line display.
 
-Sound Effects: Engine noise and crash sounds generated via the Atari POKEY chip.
+Sound Effects: Engine noise generated via the Atari POKEY chip.
 
 Cross-Platform Testing: Verified functionality on both the Altirra emulator and physical Atari hardware.
 ```
 
-Significant Implementations
+#### Repository Organization
 
 ```
-Display List Management: Built a structured display list for handling mixed text/graphics modes.
+Atari Header Files/
+Contains Atari-specific header files required for compilation. These define registers, memory locations, and constants for graphics, sound, and input.
 
-Scrolling Algorithm: Created a flow for smooth directional scrolling tied to input timing.
+Sprite Animation/
+Holds source code for sprite rendering and animation routines. Includes car rotation logic and tests for smooth player/missile graphics handling.
 
-Gas and Scoring Logic: Integrated fuel depletion and checkpoint scoring into gameplay loop.
+Working Demos/
+Two experimental builds used during development. 
+The first demo named 'workingDemoJoystick.c' contains the source code that was used to test the horizontal and vertical scrolling of the tilemap using joystick inputs. For this build, the player movement and collisions were rudimentary and only what was required for seeing if the scrolling functioned correctly. The second demo named 'workingDemo.c' we fully implemented player graphics, collision logic, scoring logic, gas timer logic, player controls and tilemap scrolling using the rotary controller inputs.
 
-Rotary Controller Handling: Implemented orientation updates by decoding PORTA register values.
+SUPERBUG.xex
+Final compiled build of the game. Runs on the Altirra emulator and native Atari 8-bit hardware.
+```
 
-Sound Generation: Programmed POKEY registers for frequency, distortion, and volume control.
 
-Memory Management: Allocated and optimized data structures to avoid conflicts with OS-reserved memory.
+#### Team Contributions
+
+Noah Fagerlie
+```
+- Worked to implement horitzon and vertical scrolling of the tilemap stored in memory.
+
+- Utilized the built in display list to display the tile map to the screen.
+
+- Integrated sprites into player/missile graphics and linked them to rotary controller input.
+
+- Linked it to rotary controls to tilemap scrolling, determining scroll direction from PORTA register values.
+```
+
+Hunter Patchett
+```
+- Worked to implement horitzon and vertical scrolling of the tilemap stored in memory.
+
+- Implemented scoring logic, collision detection, and gas timer systems.
+
+- Built the HUD to display score, fuel, and other values.
+
+- Managed tile map storage in memory and used the display list for rendering to the screen.
+
+- Modified the top display line to a different graphics mode for HUD information.
+```
+
+Andrew Link
+```
+- Helped designed and created car sprites.
+
+- Positioned sprites correctly in memory.
+
+- Assisted with sprite rotation and animation logic.
+```
+
+Jason Truong
+```
+- Contributed to project documentation.
+
+- Conducted testing and validation throughout development.
 ```
