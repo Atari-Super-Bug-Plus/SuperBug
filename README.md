@@ -1,8 +1,8 @@
 ### Project Overview
 
-The Superbug Capstone Project recreated Atari’s 1977 arcade game Superbug for the Atari 8-bit computer line. The game was developed in C using the Atari C libraries and compiled with the cc65 compiler into a .xex file, playable on both emulators and native Atari hardware.
+The Super Bug Recreation Capstone Project recreated Atari’s 1977 arcade game Super Bug for the Atari 8-bit computer line. The game was developed in C using the Atari C libraries and compiled with the cc65 compiler into a .xex file, playable on both emulators and native Atari hardware.
 
-The project’s goal was to faithfully reimagine Superbug while working under the strict memory, resolution, and performance constraints of the Atari 1200XL and 800 systems. It emphasized low-level programming and memory managament.
+The project’s goal was to faithfully reimagine Super Bug while working under the strict memory, resolution, and performance constraints of the Atari 1200XL and 800 systems. It emphasized low-level programming and memory managament.
 
 #### Key Features
 
@@ -86,5 +86,6 @@ Jason Truong
 
 - Conducted testing and validation throughout development.
 ```
+
 
 
