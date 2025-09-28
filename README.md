@@ -35,7 +35,10 @@ Holds source code for sprite rendering and animation routines. Includes car rota
 
 Working Demos/
 Two experimental builds used during development. 
-The first demo named 'workingDemoJoystick.c' contains the source code that was used to test the horizontal and vertical scrolling of the tilemap using joystick inputs. For this build, the player movement and collisions were rudimentary and only what was required for seeing if the scrolling functioned correctly. The second demo named 'workingDemo.c' we fully implemented player graphics, collision logic, scoring logic, gas timer logic, player controls and tilemap scrolling using the rotary controller inputs.
+The first demo named 'workingDemoJoystick.c' contains the source code that was used to test the horizontal and vertical scrolling of the tilemap
+using joystick inputs. For this build, the player movement and collisions were rudimentary and only what was required for seeing if the scrolling
+functioned correctly. The second demo named 'workingDemo.c' we fully implemented player graphics, collision logic, scoring logic, gas timer logic,
+player controls and tilemap scrolling using the rotary controller inputs.
 
 SUPERBUG.xex
 Final compiled build of the game. Runs on the Altirra emulator and native Atari 8-bit hardware.
@@ -83,3 +86,4 @@ Jason Truong
 
 - Conducted testing and validation throughout development.
 ```
+
