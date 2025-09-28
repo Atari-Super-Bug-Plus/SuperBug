@@ -55,7 +55,7 @@ Noah Fagerlie
 
 - Integrated sprites into player/missile graphics and linked them to rotary controller input.
 
-- Linked it to rotary controls to tilemap scrolling, determining scroll direction from PORTA register values.
+- Linked rotary controls to tilemap scrolling, determining scroll direction from PORTA register values.
 ```
 
 Hunter Patchett
@@ -68,7 +68,7 @@ Hunter Patchett
 
 - Managed tile map storage in memory and used the display list for rendering to the screen.
 
-- Modified the top display line to a different graphics mode for HUD information.
+- Modified the top display line to a different graphics mode for displaying HUD information.
 ```
 
 Andrew Link
@@ -86,4 +86,5 @@ Jason Truong
 
 - Conducted testing and validation throughout development.
 ```
+
 
